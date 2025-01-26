@@ -1,0 +1,50 @@
+name: job_b
+config:
+  nnodes:     1
+  nprocs:     1
+  ngpus:      0
+  cores per task: 3
+  subdomain: "state-machine-operator"
+
+
+image: rockylinux:9
+namespace: default
+
+script: |
+  #!/bin/bash
+
+  jobid={{ jobid }}
+  outpath=/tmp/out
+  registry="registry-0.state-machine-operator.default.svc.cluster.local:5000"
+
+  echo ">> jobid    = $jobid"
+  echo ">> outpath  = $outpath"
+  echo ">> registry = $registry"
+  echo ">> locpath  = $locpath"
+  echo ">> pwd      =" $(pwd)
+  echo ">> hostname =" $(hostname)
+
+  mkdir -p $outpath; cd $outpath
+
+  # Install oras
+  VERSION="1.2.2"
+  curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+  mkdir -p oras-install/
+  tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
+  mv oras-install/oras /usr/local/bin/
+  rm -rf oras_${VERSION}_*.tar.gz oras-install/
+
+  echo "Looking for $jobid with oras repo list"
+  oras repo list $registry --plain-http | grep ${jobid}
+  echo "Pulling oras artifact to $locpath"
+  oras pull $registry/${jobid}:job_a --plain-http
+
+  sleep 20
+  touch ${jobid}-b.txt
+  ls
+  retval=$?
+  if [ $retval -eq 0 ];
+    then
+      echo "Pushing results to $registry/${jobid}:job_b"
+      oras push --plain-http --insecure $registry/$jobid:job_b .
+  fi

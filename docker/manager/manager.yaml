@@ -1,0 +1,6 @@
+wfmanager:
+  config:
+    # E.g., oras push <host>/<uri>:<sample> --plain-http .
+    oras:
+      host: registry-0.state-machine.default.svc.cluster.local:5000
+      plain_http: true

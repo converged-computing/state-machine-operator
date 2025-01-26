@@ -1,0 +1,10 @@
+# state-machine-workflow.yaml
+workflow:
+  completed: 4
+cluster:
+  max_size: 6
+  autoscale: False
+jobs:
+  - config: jobs_a.yaml
+  - config: jobs_b.yaml
+  - config: jobs_c.yaml

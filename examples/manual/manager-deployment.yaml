@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+spec:
+  selector:
+    matchLabels:
+      app: state-machine
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        # Matches the headless service
+        app: state-machine
+    spec:
+      subdomain: state-machine
+      hostname: manager
+      containers:
+      - name: manager
+        image: ghcr.io/converged-computing/state-machine-operator:manager
+        command: ["sleep", "infinity"]
+        #command: ["/bin/bash"]
+        #args: ["/entrypoint.sh", "kube"]
+        # This ensures we use the kind loaded image
+        # remove if this isn't the case
+        imagePullPolicy: Never

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: registry
+spec:
+  serviceName: state-machine-operator
+  replicas: 1
+  selector:
+    matchLabels:
+      app: state-machine-operator
+  template:
+    metadata:
+      labels:
+        app: state-machine-operator
+    spec:
+      subdomain: state-machine-operator
+      hostname: registry
+      containers:
+      - name: registry
+        image: ghcr.io/oras-project/registry:latest
