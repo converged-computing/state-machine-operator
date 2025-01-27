@@ -108,20 +108,7 @@ def main():
     # Create the workflow manager
     print(f"> Launching workflow manager on ({platform.node()})")
     manager = WorkflowManager(wfconfig, scheduler=args.scheduler, workflow=workflow)
-
-    # Placed outside for now to throw error
     manager.start()
-
-    # start the manager
-    try:
-        pass
-        # manager.start()
-    except Exception as e:
-        print(f"Exiting due to error ({e})")
-        traceback.print_exc()
-    finally:
-        sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

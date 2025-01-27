@@ -1,0 +1,6 @@
+state_machine_operator.egg-info/
+env
+build
+dist
+.eggs
+__pycache__

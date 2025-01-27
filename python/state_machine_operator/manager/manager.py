@@ -222,7 +222,7 @@ class WorkflowManager:
         # submit_n negative would be OK, a 0-> negative range is empty
         submit_n = max(submit_n, 0)
 
-        LOGGER.info(f">\n 🌀 Starting step {step['name']}")
+        LOGGER.info(f"\n> 🌀 Starting step {step['name']}")
         LOGGER.info("> Workflow needs")
         LOGGER.info(f"  > total completions           {self.workflow.completions_needed} ")
         LOGGER.info(f"  > max nodes allowed use       {self.workflow.max_size}\n")

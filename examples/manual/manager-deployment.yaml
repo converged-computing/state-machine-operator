@@ -5,13 +5,13 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: state-machine
+      app: state-machine-operator
   replicas: 1
   template:
     metadata:
       labels:
         # Matches the headless service
-        app: state-machine
+        app: state-machine-operator
     spec:
       subdomain: state-machine
       hostname: manager
@@ -20,7 +20,7 @@ spec:
         image: ghcr.io/converged-computing/state-machine-operator:manager
         command: ["sleep", "infinity"]
         #command: ["/bin/bash"]
-        #args: ["/entrypoint.sh", "kube"]
+        #args: ["/entrypoint.sh"]
         # This ensures we use the kind loaded image
         # remove if this isn't the case
         imagePullPolicy: Never
