@@ -18,22 +18,24 @@ LOGGER = logging.getLogger(__name__)
 
 
 class WorkflowManager:
-    def __init__(self, cfg, workflow, scheduler=defaults.default_scheduler):
+    def __init__(self, workflow, scheduler=None, registry=None, plain_http=False, prefix=None):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
         but it makes sense to be on the class instance init. State is derived
         from the Kubernetes cluster, and a state machine is created for each
         job sequence.
         """
-        self.config = cfg
         self.workflow = workflow
 
-        # Job prefix (defaults to structure_, don't change)
-        self.set_prefix()
+        # Set any defaults if needed
+        self.scheduler = scheduler or defaults.scheduler
+        self.registry = registry or defaults.registry
+        self.prefix = prefix or defaults.prefix
 
         # Running modes (we only allow kubernetes for now)
-        self.scheduler = scheduler
+        LOGGER.info(f" Job Prefix: [{self.prefix}]")
         LOGGER.info(f"  Scheduler: [{self.scheduler}]")
+        LOGGER.info(f"   Registry: [{self.registry}]")
 
         if self.scheduler not in defaults.supported_schedulers:
             raise ValueError(
@@ -43,24 +45,6 @@ class WorkflowManager:
         # Load connection to kubernetes
         if self.scheduler == "kubernetes":
             self.load_kubernetes_config()
-
-    @property
-    def wconfig(self):
-        return self.config["wfmanager"]["config"]
-
-    def set_prefix(self):
-        """
-        Set a prefix for job identifiers
-        """
-        if "prefix" not in self.wconfig:
-            self.wconfig["prefix"] = defaults.default_prefix
-
-    @property
-    def prefix(self):
-        """
-        The job prefix (defaults to job_)
-        """
-        return self.wconfig.get("prefix") or "job_"
 
     def load_kubernetes_config(self):
         """

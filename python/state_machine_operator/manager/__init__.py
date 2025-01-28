@@ -21,18 +21,6 @@ def get_parser():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "--debug",
-        help="logger debug mode",
-        default=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--quiet",
-        help="quiet mode",
-        default=False,
-        action="store_true",
-    )
-    parser.add_argument(
         "--version",
         help="show software version.",
         default=False,
@@ -50,24 +38,28 @@ def get_parser():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     start.add_argument(
-        "--manager-config",
-        dest="manager_config",
-        help="Workflow manager config filename",
-        default="wfmanager.yaml",
-    )
-    start.add_argument(
         "--scheduler",
         help="Scheduler to use (defaults to Kubernetes)",
         choices=defaults.supported_schedulers,
         default="kubernetes",
     )
     start.add_argument(
-        "config",
-        help="Workflow config (required)",
+        "--prefix",
+        help="Prefix to use for jobs",
+    )
+    start.add_argument(
+        "--registry",
+        help="Workflow registry to push/pull artifacts",
     )
     start.add_argument(
         "--config-dir",
         help="Directory with configuration files.",
+    )
+    start.add_argument(
+        "--plain-http",
+        help="Use plain http for the registry.",
+        default=False,
+        action="store_true",
     )
     return parser
 
@@ -107,8 +99,11 @@ def main():
 
     # Create the workflow manager
     print(f"> Launching workflow manager on ({platform.node()})")
-    manager = WorkflowManager(wfconfig, scheduler=args.scheduler, workflow=workflow)
+    manager = WorkflowManager(
+        workflow, scheduler=args.scheduler, registry=args.registry, plain_http=args.plain_http
+    )
     manager.start()
+
 
 if __name__ == "__main__":
     main()

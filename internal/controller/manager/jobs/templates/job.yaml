@@ -1,0 +1,19 @@
+name: {{ .Job.Name }}
+
+{{ template "job-config" . }}
+
+# container image for createsims (should be loaded into cluster)
+image: {{ .Job.Image }}
+namespace: {{ if .StateMachine.Namespace }}{{ .StateMachine.Namespace }}{{ else }}default{{ end }}
+
+# This will need testing to determine a good format.
+{{ if .Job.AppConfig }}
+app-config: |
+  {{ .Job.AppConfig }}
+{{ end }}
+
+{{ if .Job.Script }}
+script: |
+  {{ template "install-oras" . }}
+  {{ .Job.Script }}
+{{ end }}

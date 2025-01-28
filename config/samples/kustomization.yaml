@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- state-machine_v1alpha1_statemachine.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

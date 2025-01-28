@@ -1,0 +1,27 @@
+# permissions for end users to edit statemachines.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: state-machine-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: statemachine-editor-role
+rules:
+- apiGroups:
+  - state-machine.converged-computing.org
+  resources:
+  - statemachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - state-machine.converged-computing.org
+  resources:
+  - statemachines/status
+  verbs:
+  - get
