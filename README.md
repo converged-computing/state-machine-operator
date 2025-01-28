@@ -23,63 +23,32 @@ You can create a cluster locally (if your computer is chonky and can handle it) 
 kind create cluster --config ./examples/kind-config.yaml
 ```
 
-### 2. State Machine Workflow
+### 2. State Machine Workflows
 
-#### Prototype Config
-
-Here is an example config to provide to the state machine manager `state-machine-manager`. The steps should be provided in their expected order.
-
-```yaml
-# state-machine-workflow.yaml
-workflow:
-  completed: 4
-cluster:
-  max_size: 6
-  autoscale: False
-jobs:
-  - config: jobs_a.yaml
-  - config: jobs_b.yaml
-  - config: jobs_c.yaml
-```
-
-Each configuration file has a format that is expected by the manager, and anything else is passed to the workflow entrypoint `script` to use. You can find this along with the job steps in [examples/jobs](examples/jobs)
-
-#### Containers
-
-Containers are defined for the workflow manager in [examples/jobs](examples/jobs). We build them from this context to add in the state-machine-operator code.
-
-```bash
-kind create cluster --config ./kind-config.yaml
-
-# This builds the image and loads into kind
-make kind
-```
-
-This is how I'm testing. Note that for more customization we likely can use the operator.
-
-```bash
-kubectl apply -f ./examples/manual
-```
-
-This has an added oras client (in Python) for pushing artifacts. Note that the entrypoint is set to sleep for interactive start, so you can shell in and do:
-
-```bash
-bash /entrypoint.sh
-```
-Or restore the automated entrypoint for an automated run.
+We provide two examples - one using the operator, and one manual for those that want to create the various objects and understand how the state machine operator (and corresponding Python library) work. For the manual examples, see the readme in [examples](examples). We will continue here with the operator example.
 
 ### 3. Install the Operator
 
 The operator is built via its manifest in dist. For development:
 
 ```bash
+# Install and load into general cluster
 make test-deploy-recreate
+
+# Install and load into kind
+make test-deploy-kind
 ```
 
 For non-development:
 
 ```bash
 kubectl apply -f examples/dist/state-machine-operator.yaml
+```
+
+And apply the CRD to create the state machine. For interactive work, remember to set spec->workflow->interactive (or the same for any job under jobs) to true.
+
+```bash
+kubectl apply -f examples/state-machine.yaml
 ```
 
 ## Design

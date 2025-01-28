@@ -86,6 +86,10 @@ type JobStep struct {
 	// +optional
 	Config JobConfig `json:"config,omitempty"`
 
+	// Configuration for the job registry
+	// +optional
+	Registry RegistryConfig `json:"registry,omitempty"`
+
 	// Custom data config to provide to worker
 	// + optional
 	AppConfig string `json:"appConfig,omitempty"`
@@ -100,11 +104,6 @@ type JobStep struct {
 
 	// Script for the job to run
 	Script string `json:"script,omitempty"`
-
-	// A GPU label to use (in the context of ngpus >=1)
-	// if not provided, defaults to nvidia.com/gpu
-	//+optional
-	GPULabel string `json:"gpulabel,omitempty"`
 
 	// Variables are the simname (supplied by jobTracker)
 	// and output / other paths that should not be customized
@@ -152,6 +151,11 @@ type JobConfig struct {
 	// +default="IfNotPresent"
 	// +optional
 	PullPolicy string `json:"pullPolicy,omitempty"`
+
+	// A GPU label to use (in the context of ngpus >=1)
+	// if not provided, defaults to nvidia.com/gpu
+	//+optional
+	GPULabel string `json:"gpulabel,omitempty"`
 
 	// Command is a custom command entrypoint
 	// +optional
@@ -244,7 +248,29 @@ type OrasConfig struct {
 	// +kubebuilder:default="IfNotPresent"
 	// +default="IfNotPresent"
 	// +optional
-	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
+	PullPolicy string `json:"pullPolicy,omitempty"`
+}
+
+// RegistryConfig is to orchestrate push and pull for a job
+type RegistryConfig struct {
+
+	// Tag to push to
+	// +optional
+	Push string `json:"push,omitempty"`
+
+	// Tag to pull to
+	// +optional
+	Pull string `json:"pull,omitempty"`
+
+	// Override registry host for this job
+	// +optional
+	Host string `json:"host,omitempty"`
+
+	// Override registry plain http for this job
+	// +kubebuilder:default=true
+	// +default=true
+	// +optional
+	PlainHTTP bool `json:"plainHttp,omitempty"`
 }
 
 // PlainHttp exposes the expected positive variant of the variable

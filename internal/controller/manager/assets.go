@@ -12,29 +12,26 @@ import (
 //go:embed templates/entrypoint.sh
 var entrypointTemplate string
 
-// NewEntrypoint generates the entrypoint.sh and kubernetes_start.sh
-// as data for a config map
+// NewEntrypoint generates the entrypoint.sh and jobs
 func NewEntrypoint(spec *api.StateMachine) (map[string]string, error) {
 	data := map[string]string{}
-
-	// This list will go into the statemachine workflow config
-	jobFiles := []string{}
+	mLog.Info("Creating state machine manager configMap for: ", spec.ManagerName(), spec.Namespace)
 
 	// Populate jobs into config map
 	for i, job := range spec.Spec.Jobs {
 		jobTemplated, err := jobs.TemplateJob(spec, &job)
 		if err != nil {
-			return data, nil
+			return data, err
 		}
-		jobFile := fmt.Sprintf("job_%d.yaml", i)
+		jobFile := fmt.Sprintf("jobs_%d.yaml", i)
 		data[jobFile] = jobTemplated
-		jobFiles = append(jobFiles, jobFile)
 	}
 
 	entrypoint, err := utils.PopulateTemplate(spec, entrypointTemplate)
 	if err != nil {
 		return data, err
 	}
+	fmt.Println(entrypoint)
 	data["entrypoint.sh"] = entrypoint
 
 	// Prepare the workflow file

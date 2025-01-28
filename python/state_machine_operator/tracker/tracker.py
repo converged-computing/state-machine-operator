@@ -374,6 +374,26 @@ class KubernetesTracker:
             LOGGER.debug(f"[{self.type}] Started job {jobid}")
         return submit_record
 
+    @property
+    def registry_host(self):
+        """
+        First defalt to registry host set by job, fall back to workflow.
+        """
+        registry_host = self.job_desc.get("registry", {}).get("host")
+        if registry_host is not None:
+            return registry_host
+        return self.workflow.registry_host
+
+    @property
+    def registry_plain_http(self):
+        """
+        First defalt to registry plain-http set by job, fall back to workflow.
+        """
+        plain_http = self.job_desc.get("registry", {}).get("plain_http")
+        if plain_http is not None:
+            return plain_http
+        return self.workflow.registry_plain_http
+
     def create_step(self, jobid):
         """
         Create job parameters for a Kubernetes Job CRD
@@ -387,9 +407,21 @@ class KubernetesTracker:
             gpus=self.ngpus,
         )
 
+        # Working directory is created and cd'd to
+        workdir = self.job_desc.get("workdir") or defaults.workdir
+
         if "script" in self.job_desc:
             # This allows the script to be able to handle one or more jobid
-            kwargs = {"jobids": [jobid], "jobid": jobid, "configjson": "/workdir/app-config.json"}
+            kwargs = {
+                "jobids": [jobid],
+                "jobid": jobid,
+                "configjson": "/workdir/app-config.json",
+                "workdir": workdir,
+                "pull": self.workflow.pull_from,
+                "push": self.workflow.push_to,
+                "registry": self.registry_host,
+                "plain_http": self.registry_plain_http,
+            }
             step.script = Template(self.job_desc["script"]).render(**kwargs)
 
         # Is there a walltime set?

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	mLog = ctrl.Log.WithName("mlserver")
+	mLog = ctrl.Log.WithName("manager")
 )
 
 // NewWorkflowManagerDeployment returns a new MLServer deployment based on the spec

@@ -10,7 +10,7 @@ import yaml
 import state_machine_operator
 import state_machine_operator.defaults as defaults
 from state_machine_operator.client import get_subparser_helper
-from state_machine_operator.config import load_config, load_workflow_config
+from state_machine_operator.config import load_workflow_config
 
 from .manager import WorkflowManager
 
@@ -48,6 +48,10 @@ def get_parser():
         help="Prefix to use for jobs",
     )
     start.add_argument(
+        "config",
+        help="Workflow configuration file (required)",
+    )
+    start.add_argument(
         "--registry",
         help="Workflow registry to push/pull artifacts",
     )
@@ -79,7 +83,7 @@ def main():
         help()
 
     # If an error occurs while parsing the arguments, the interpreter will exit with value 2
-    args, extra = parser.parse_known_args()
+    args, _ = parser.parse_known_args()
 
     # Show the version and exit
     if args.command == "version" or args.version:
@@ -90,12 +94,8 @@ def main():
     # This is not currently used and can be removed
     get_subparser_helper(args, parser)
 
-    # Load workflow manager config
-    wfconfig = load_config(args.config_dir, args.manager_config)
-    print(wfconfig)
-
     # This is the workflow config that defines files for jobs
-    workflow = load_workflow_config(args.config, args.config_dir, debug=args.debug)
+    workflow = load_workflow_config(args.config, args.config_dir)
 
     # Create the workflow manager
     print(f"> Launching workflow manager on ({platform.node()})")

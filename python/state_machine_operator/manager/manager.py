@@ -29,8 +29,8 @@ class WorkflowManager:
 
         # Set any defaults if needed
         self.scheduler = scheduler or defaults.scheduler
-        self.registry = registry or defaults.registry
         self.prefix = prefix or defaults.prefix
+        self.init_registry(registry, plain_http)
 
         # Running modes (we only allow kubernetes for now)
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
@@ -54,6 +54,15 @@ class WorkflowManager:
             config.load_incluster_config()
         except Exception:
             config.load_config()
+
+    def init_registry(self, registry, plain_http=None):
+        """
+        Initialize the registry if it isn't defined in the workflow config
+        """
+        # Tack the registry into the workflow config to pass on to jobs
+        self.registry = registry or defaults.registry
+        self.plain_http = plain_http if plain_http is not None else True
+        self.workflow.set_registry(self.registry, self.plain_http)
 
     def generate_id(self):
         """

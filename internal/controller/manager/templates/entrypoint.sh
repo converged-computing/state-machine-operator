@@ -11,8 +11,8 @@ workflow:
 cluster:
   max_size: {{ .Spec.Cluster.MaxSize }}
   autoscale: {{ .Spec.Cluster.Autoscale }}
-jobs:{{ range $index, $jobfile := .JobFiles }}
-  - config: jobs_{{ $index }}.yaml
+jobs:
+{{ range $index, $jobfile := .Spec.Jobs }} - config: jobs_{{ $index }}.yaml
 {{ end }}
 EOF
 
@@ -24,7 +24,12 @@ registry="{{ .StateMachine.RegistryHost }}"
 cmd="state-machine-manager start ${workflow_config} --config-dir=${config_dir} --scheduler ${scheduler} --registry ${registry} {{ if .Spec.Registry.PlainHttp }}--plain-http{{ end }}"
 
 # Trigger interactive mode here so we have files staged above
+echo "$cmd"
 {{ if .Spec.Manager.Interactive }}sleep infinity{{ end }}
 
 # Run the manager
 $cmd
+
+# We want to keep the deployment container running, otherwise it will restart
+echo "Workflow is complete. You can delete the deployment to clean up."
+sleep infinity

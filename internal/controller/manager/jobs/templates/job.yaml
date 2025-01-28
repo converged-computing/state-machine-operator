@@ -6,6 +6,13 @@ name: {{ .Job.Name }}
 image: {{ .Job.Image }}
 namespace: {{ if .StateMachine.Namespace }}{{ .StateMachine.Namespace }}{{ else }}default{{ end }}
 
+{{ if .Job.Registry }}
+registry:
+  {{ if .Job.Registry.Push }}push: {{ .Job.Registry.Push }}{{ end }}
+  {{ if .Job.Registry.Pull }}pull: {{ .Job.Registry.Pull }}{{ end }}
+  {{ if .Job.Registry.Host }}host: {{ .Job.Registry.Host }}{{ end }}
+{{ end }}
+
 # This will need testing to determine a good format.
 {{ if .Job.AppConfig }}
 app-config: |
@@ -14,6 +21,5 @@ app-config: |
 
 {{ if .Job.Script }}
 script: |
-  {{ template "install-oras" . }}
   {{ .Job.Script }}
 {{ end }}

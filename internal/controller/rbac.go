@@ -92,7 +92,7 @@ func (r *StateMachineReconciler) createRole(
 			{
 				APIGroups: []string{"", "batch"},
 				Resources: []string{"pods", "jobs", "configmaps", "jobs/status"},
-				Verbs:     []string{"list", "get", "patch", "create", "delete"},
+				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
 			},
 		},
 	}

@@ -54,7 +54,7 @@ func (r *StateMachineReconciler) createStatefulSet(
 
 	// Request the selector just once
 	selector := spec.Selector()
-	pullPolicy := corev1.PullPolicy(spec.Spec.Registry.ImagePullPolicy)
+	pullPolicy := corev1.PullPolicy(spec.Spec.Registry.PullPolicy)
 
 	// Define the StatefulSet
 	// Having a common name "registry" assumes that multiply mini-mummi in the same namespace

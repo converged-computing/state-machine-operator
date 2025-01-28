@@ -12,6 +12,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,10 +35,12 @@ func (r *StateMachineReconciler) ensureManager(
 	// Create the config map entrypoint first
 	cm := &corev1.ConfigMap{}
 	err := r.Get(ctx, types.NamespacedName{Name: spec.ManagerName(), Namespace: spec.Namespace}, cm)
+	fmt.Println(err)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = r.createManagerEntrypoint(ctx, spec)
 		}
+		fmt.Println(err)
 		return ctrl.Result{}, err
 	}
 
@@ -73,11 +76,8 @@ func (r *StateMachineReconciler) createManagerEntrypoint(
 
 	// Return data for the workflow manager entrypoint, along with all of the job specs
 	// entrypoint.sh
-	// kubernetes_start.sh
-	// wfmanager.yaml
-	// jobs_cg.yaml
-	// jobs_createsim.yaml
-
+	// job_a.yaml ... job_n.yaml
+	// state-machine-workflow.yaml
 	data, err := manager.NewEntrypoint(spec)
 	if err != nil {
 		return nil, err

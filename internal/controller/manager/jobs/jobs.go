@@ -2,8 +2,61 @@ package jobs
 
 import (
 	"bytes"
+	"strings"
 
 	api "github.com/converged-computing/state-machine-operator/api/v1alpha1"
+)
+
+var (
+	install_oras = `
+# Install oras
+cd /tmp
+VERSION="1.2.2"
+curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+mkdir -p oras-install/
+tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
+mv oras-install/oras /usr/local/bin/ || sudo mv oras-install/oras /usr/local/bin/
+rm -rf oras_${VERSION}_*.tar.gz oras-install/
+cd -
+
+`
+
+	preamble = `
+jobid="{{ jobid }}"
+outpath="{{ outpath }}"
+registry="{{ registry }}"
+
+echo ">> jobid        = $jobid"
+echo ">> outpath      = $outpath"
+echo ">> registry     = $registry"
+echo ">> hostname     = "$(hostname)
+
+mkdir -p -v $outpath; cd $outpath
+`
+
+	pull_oras = `
+{% if pull %}
+echo "Looking for $jobid with oras repo list"
+oras repo list $registry {% if plain_http %}--plain-http{% endif %} | grep ${jobid}
+echo "Pulling oras artifact to $locpath"
+oras pull $registry/${jobid}:{{ pull }} {% if plain_http %}--plain-http{% endif %}
+{% endif %}
+`
+
+	push_oras = `
+{% if push %}
+retval=$?
+if [ $retval -eq 0 ];
+  then
+      # TODO add granularity of what result file to push
+      echo "Job was successful, pushing result to $registry/${jobid}:{{ push }}"
+	  oras push {% if plain_http %}--plain-http{% endif %} $registry/${jobid}:{{ push }} .
+  else
+    echo "Job was not successful"
+    exit 1
+  fi
+{% endif %}
+`
 )
 
 // PopulateCreateSim populates a newly provided MummiJob with defaults, etc.
@@ -22,6 +75,13 @@ func populateJobDefaults(job *api.JobStep) {
 		job.Config.Nproc = defaultNumberProcs
 	}
 	// No default walltime set
+
+	// Add space in front of each line of the script
+	// This is needed so it renders into the yaml
+	if job.Script != "" {
+		job.Script = preamble + install_oras + pull_oras + job.Script + push_oras
+		job.Script = strings.ReplaceAll(job.Script, "\n", "\n  ")
+	}
 }
 
 // TemplateCreateSim prepares the template for the config file mount

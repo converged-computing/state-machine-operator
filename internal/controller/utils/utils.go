@@ -2,16 +2,15 @@ package utils
 
 import (
 	"bytes"
-	"html/template"
+	"text/template"
 
 	api "github.com/converged-computing/state-machine-operator/api/v1alpha1"
 )
 
 // TemplateSubs are currently just the spec
-// This is consistent across all deployments, etc.
 type TemplateSubs struct {
-	Spec  *api.StateMachineSpec
-	Mummi *api.StateMachine
+	Spec         *api.StateMachineSpec
+	StateMachine *api.StateMachine
 }
 
 // PopulateTemplate is a generic template to provide the spec to populate a template
@@ -27,7 +26,7 @@ func PopulateTemplate(spec *api.StateMachine, templateString string) (string, er
 	var out bytes.Buffer
 
 	// Data for the template (redundant, but provided for convenience)
-	subs := TemplateSubs{Spec: &spec.Spec, Mummi: spec}
+	subs := TemplateSubs{Spec: &spec.Spec, StateMachine: spec}
 
 	// Execute the template and write output to stdout
 	err = tmpl.Execute(&out, subs)

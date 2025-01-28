@@ -84,6 +84,11 @@ spec:
                             6 frontier / 3 summit / 5 on lassen (vsoch: this used to be 6 default)
                           format: int32
                           type: integer
+                        gpulabel:
+                          description: |-
+                            A GPU label to use (in the context of ngpus >=1)
+                            if not provided, defaults to nvidia.com/gpu
+                          type: string
                         gpus:
                           description: GPUs per job
                           format: int32
@@ -112,18 +117,10 @@ spec:
                           description: Walltime (in string format) for the job
                           type: string
                       type: object
-                    gpulabel:
-                      description: |-
-                        A GPU label to use (in the context of ngpus >=1)
-                        if not provided, defaults to nvidia.com/gpu
-                      type: string
                     image:
                       description: |-
                         Namespace is inherited from StateMachine Spec
                         This is the continer image (required)
-                      type: string
-                    imagePullPolicy:
-                      description: Image pull policy (defaults to IfNotPresent)
                       type: string
                     interactive:
                       description: Run in interactive mode for debugging
@@ -131,6 +128,23 @@ spec:
                     name:
                       description: Name is the name of the job (required)
                       type: string
+                    registry:
+                      description: Configuration for the job registry
+                      properties:
+                        host:
+                          description: Override registry host for this job
+                          type: string
+                        plainHttp:
+                          default: true
+                          description: Override registry plain http for this job
+                          type: boolean
+                        pull:
+                          description: Tag to pull to
+                          type: string
+                        push:
+                          description: Tag to push to
+                          type: string
+                      type: object
                     script:
                       description: Script for the job to run
                       type: string
@@ -193,10 +207,6 @@ spec:
                     default: ghcr.io/oras-project/registry:latest
                     description: Container image
                     type: string
-                  imagePullPolicy:
-                    default: IfNotPresent
-                    description: Image pull policy (e.g., Always, Never, etc.)
-                    type: string
                   name:
                     default: registry
                     description: Name for the registry (defaults to registry)
@@ -208,6 +218,10 @@ spec:
                     description: Port to use to interact with the registry
                     format: int32
                     type: integer
+                  pullPolicy:
+                    default: IfNotPresent
+                    description: Image pull policy (e.g., Always, Never, etc.)
+                    type: string
                   replicas:
                     default: 1
                     description: Replicas for the registry deployment
@@ -817,6 +831,7 @@ spec:
         command:
         - /manager
         image: ghcr.io/converged-computing/state-machine-operator:test
+        imagePullPolicy: Always
         livenessProbe:
           httpGet:
             path: /healthz

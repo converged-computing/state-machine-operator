@@ -7,34 +7,11 @@ config:
   {{ if .Job.Config.Walltime }}walltime:         '{{ .Job.Config.Walltime }}{{ end }}
   # Kubernetes specific settings
   {{ if .Job.Config.GPULabel }}gpulabel:         {{ .Job.Config.GPULabel }}{{ end }}
-  pull_policy:      {{ .Job.PullPolicy }}
+  pull_policy:      {{ .Job.Config.PullPolicy }}
   retry_failure:    {{ if .Job.Config.RetryFailure }}true{{ else }}false{{ end }}
-  subdomain: {{ .Spec.Name }}
+  subdomain: {{ .Spec.Manager.Subdomain }}
 {{end}}
 
-
-name: job_a
-config:
-  nnodes:         1
-  nprocs:         1
-  cores per task: 6
-  ngpus:          0
-  subdomain: "state-machine-operator"
-
-image: rockylinux:9
-namespace: default
-
-{{ define "install-oras" }}
-# Install oras
-cd /tmp
-VERSION="1.2.2"
-curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
-mkdir -p oras-install/
-tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
-mv oras-install/oras /usr/local/bin/ || sudo mv oras-install/oras /usr/local/bin/
-rm -rf oras_${VERSION}_*.tar.gz oras-install/
-cd -
-{{ end }}
 
 {{ define "oras-pull" }}
   echo "Looking for $simname with oras repo list"
