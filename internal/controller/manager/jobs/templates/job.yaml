@@ -1,0 +1,25 @@
+name: {{ .Job.Name }}
+
+{{ template "job-config" . }}
+
+# container image for createsims (should be loaded into cluster)
+image: {{ .Job.Image }}
+namespace: {{ if .StateMachine.Namespace }}{{ .StateMachine.Namespace }}{{ else }}default{{ end }}
+
+{{ if .Job.Registry }}
+registry:
+  {{ if .Job.Registry.Push }}push: {{ .Job.Registry.Push }}{{ end }}
+  {{ if .Job.Registry.Pull }}pull: {{ .Job.Registry.Pull }}{{ end }}
+  {{ if .Job.Registry.Host }}host: {{ .Job.Registry.Host }}{{ end }}
+{{ end }}
+
+# This will need testing to determine a good format.
+{{ if .Job.AppConfig }}
+app-config: |
+  {{ .Job.AppConfig }}
+{{ end }}
+
+{{ if .Job.Script }}
+script: |
+  {{ .Job.Script }}
+{{ end }}

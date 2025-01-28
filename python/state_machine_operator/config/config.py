@@ -8,7 +8,7 @@ import state_machine_operator.utils as utils
 from state_machine_operator import schema
 
 
-def load_workflow_config(config_path, config_dir=None, debug=False, validate=True):
+def load_workflow_config(config_path, config_dir=None, validate=True):
     """
     Load the workflow config path, validating with the schema
     """
@@ -68,6 +68,42 @@ class WorkflowConfig:
 
     def get_job(self, name):
         return self.jobs.get(name)
+
+    @property
+    def registry_host(self):
+        """
+        Get the registry host
+        """
+        return self.cfg["registry"].get("host") or defaults.registry
+
+    @property
+    def registry_plain_http(self):
+        """
+        Determine if the registry supports plain http.
+        """
+        plain_http = self.cfg["registry"].get("plain_http")
+        if plain_http is None:
+            return True
+        return plain_http
+
+    @property
+    def push_to(self):
+        return self.cfg.get("registry", {}).get("push")
+
+    @property
+    def pull_from(self):
+        return self.cfg.get("registry", {}).get("pull")
+
+    def set_registry(self, registry_host, plain_http=None):
+        """
+        Set registry host and parameters
+        """
+        if "registry" not in self.cfg:
+            self.cfg["registry"] = {}
+        if registry_host is not None:
+            self.cfg["registry"]["host"] = registry_host
+        if plain_http is not None:
+            self.cfg["registry"]["plain_http"] = plain_http
 
     def load_jobs(self):
         """

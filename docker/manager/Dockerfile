@@ -13,5 +13,3 @@ COPY ./python /opt/state-machine-operator
 RUN cd /opt/state-machine-operator && \
     pip install -e . && \
     pip install IPython
-
-COPY ./docker/manager/manager.yaml /manager.yaml

@@ -140,9 +140,12 @@ docker-build: ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	$(CONTAINER_TOOL) push ${IMG}
 
-.PHONY: kind
-kind: ## Build docker image with the manager and load into kind
+.PHONY: manager
+manager:
 	$(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_IMG} .
+
+.PHONY: kind
+kind: manager ## Build docker image with the manager and load into kind
 	kind load docker-image ${MANAGER_IMG}
 	kubectl delete -f examples/manual/manager-deployment.yaml  || true
 	kubectl apply -f examples/manual/manager-deployment.yaml || true
@@ -204,6 +207,12 @@ test-deploy: manifests kustomize
 
 .PHONY: test-deploy-recreate
 test-deploy-recreate: test-deploy
+	kubectl delete -f ./examples/dist/state-machine-operator-dev.yaml || echo "Already deleted"
+	kubectl apply -f ./examples/dist/state-machine-operator-dev.yaml
+
+.PHONY: test-deploy-kind
+test-deploy-kind: test-deploy manager
+	kind load docker-image ${MANAGER_IMG}
 	kubectl delete -f ./examples/dist/state-machine-operator-dev.yaml || echo "Already deleted"
 	kubectl apply -f ./examples/dist/state-machine-operator-dev.yaml
 

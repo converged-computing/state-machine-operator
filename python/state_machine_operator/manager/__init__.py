@@ -10,7 +10,7 @@ import yaml
 import state_machine_operator
 import state_machine_operator.defaults as defaults
 from state_machine_operator.client import get_subparser_helper
-from state_machine_operator.config import load_config, load_workflow_config
+from state_machine_operator.config import load_workflow_config
 
 from .manager import WorkflowManager
 
@@ -19,18 +19,6 @@ def get_parser():
     parser = argparse.ArgumentParser(
         description="State Machine Operator Manager",
         formatter_class=argparse.RawTextHelpFormatter,
-    )
-    parser.add_argument(
-        "--debug",
-        help="logger debug mode",
-        default=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--quiet",
-        help="quiet mode",
-        default=False,
-        action="store_true",
     )
     parser.add_argument(
         "--version",
@@ -50,24 +38,32 @@ def get_parser():
         formatter_class=argparse.RawTextHelpFormatter,
     )
     start.add_argument(
-        "--manager-config",
-        dest="manager_config",
-        help="Workflow manager config filename",
-        default="wfmanager.yaml",
-    )
-    start.add_argument(
         "--scheduler",
         help="Scheduler to use (defaults to Kubernetes)",
         choices=defaults.supported_schedulers,
         default="kubernetes",
     )
     start.add_argument(
+        "--prefix",
+        help="Prefix to use for jobs",
+    )
+    start.add_argument(
         "config",
-        help="Workflow config (required)",
+        help="Workflow configuration file (required)",
+    )
+    start.add_argument(
+        "--registry",
+        help="Workflow registry to push/pull artifacts",
     )
     start.add_argument(
         "--config-dir",
         help="Directory with configuration files.",
+    )
+    start.add_argument(
+        "--plain-http",
+        help="Use plain http for the registry.",
+        default=False,
+        action="store_true",
     )
     return parser
 
@@ -87,7 +83,7 @@ def main():
         help()
 
     # If an error occurs while parsing the arguments, the interpreter will exit with value 2
-    args, extra = parser.parse_known_args()
+    args, _ = parser.parse_known_args()
 
     # Show the version and exit
     if args.command == "version" or args.version:
@@ -98,17 +94,16 @@ def main():
     # This is not currently used and can be removed
     get_subparser_helper(args, parser)
 
-    # Load workflow manager config
-    wfconfig = load_config(args.config_dir, args.manager_config)
-    print(wfconfig)
-
     # This is the workflow config that defines files for jobs
-    workflow = load_workflow_config(args.config, args.config_dir, debug=args.debug)
+    workflow = load_workflow_config(args.config, args.config_dir)
 
     # Create the workflow manager
     print(f"> Launching workflow manager on ({platform.node()})")
-    manager = WorkflowManager(wfconfig, scheduler=args.scheduler, workflow=workflow)
+    manager = WorkflowManager(
+        workflow, scheduler=args.scheduler, registry=args.registry, plain_http=args.plain_http
+    )
     manager.start()
+
 
 if __name__ == "__main__":
     main()

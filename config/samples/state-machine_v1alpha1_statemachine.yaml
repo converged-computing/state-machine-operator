@@ -1,0 +1,9 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  labels:
+    app.kubernetes.io/name: state-machine-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: statemachine-sample
+spec:
+  # TODO(user): Add fields here
