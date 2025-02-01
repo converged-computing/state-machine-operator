@@ -64,7 +64,6 @@ spec:
               jobs:
                 description: StateMachine Job interface, each maps to K8s job
                 items:
-                  description: MummiJob
                   properties:
                     appConfig:
                       description: Custom data config to provide to worker
@@ -74,9 +73,7 @@ spec:
                       properties:
                         command:
                           description: Command is a custom command entrypoint
-                          items:
-                            type: string
-                          type: array
+                          type: string
                         coresPerTask:
                           default: 3
                           description: |-
@@ -147,6 +144,9 @@ spec:
                       type: object
                     script:
                       description: Script for the job to run
+                      type: string
+                    workdir:
+                      description: Working directory (and output path)
                       type: string
                   type: object
                 type: array
@@ -235,6 +235,9 @@ spec:
                     description: Number of state machine sequences required for completion
                     format: int32
                     type: integer
+                  prefix:
+                    description: Prefix for jobs (e.g., structure_ for mummi)
+                    type: string
                 required:
                 - completed
                 type: object

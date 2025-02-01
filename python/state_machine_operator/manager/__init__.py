@@ -44,10 +44,6 @@ def get_parser():
         default="kubernetes",
     )
     start.add_argument(
-        "--prefix",
-        help="Prefix to use for jobs",
-    )
-    start.add_argument(
         "config",
         help="Workflow configuration file (required)",
     )
@@ -100,7 +96,10 @@ def main():
     # Create the workflow manager
     print(f"> Launching workflow manager on ({platform.node()})")
     manager = WorkflowManager(
-        workflow, scheduler=args.scheduler, registry=args.registry, plain_http=args.plain_http
+        workflow,
+        scheduler=args.scheduler,
+        registry=args.registry,
+        plain_http=args.plain_http,
     )
     manager.start()
 
