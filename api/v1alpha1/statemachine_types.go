@@ -67,6 +67,9 @@ type Workflow struct {
 	// Number of state machine sequences required for completion
 	Completed int32 `json:"completed"`
 
+	// Prefix for jobs (e.g., structure_ for mummi)
+	Prefix string `json:"prefix,omitempty"`
+
 	// TODO add a failure condition?
 }
 
@@ -76,7 +79,6 @@ type Workflow struct {
 // to the job (not knowing the structure in advance)
 type JobSequence []JobStep
 
-// MummiJob
 type JobStep struct {
 
 	// Name is the name of the job (required)
@@ -99,8 +101,12 @@ type JobStep struct {
 	Image string `json:"image,omitempty"`
 
 	// Run in interactive mode for debugging
-	// +omitempty
+	// +optional
 	Interactive bool `json:"interactive,omitempty"`
+
+	// Working directory (and output path)
+	// +optional
+	Workdir string `json:"workdir,omitempty"`
 
 	// Script for the job to run
 	Script string `json:"script,omitempty"`
@@ -159,7 +165,12 @@ type JobConfig struct {
 
 	// Command is a custom command entrypoint
 	// +optional
-	Command []string `json:"command,omitempty"`
+	Command string `json:"command,omitempty"`
+}
+
+// HsaRegistry returns true if any of the host, pull, or push is not empty
+func (j *JobStep) HasRegistry() bool {
+	return !(j.Registry.Host == "" && j.Registry.Pull == "" && j.Registry.Push == "")
 }
 
 // The State Machine Manager manages the workflow

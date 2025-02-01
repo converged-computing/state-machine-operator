@@ -18,7 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 class WorkflowManager:
-    def __init__(self, workflow, scheduler=None, registry=None, plain_http=False, prefix=None):
+    def __init__(self, workflow, scheduler=None, registry=None, plain_http=False):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
         but it makes sense to be on the class instance init. State is derived
@@ -29,7 +29,7 @@ class WorkflowManager:
 
         # Set any defaults if needed
         self.scheduler = scheduler or defaults.scheduler
-        self.prefix = prefix or defaults.prefix
+        self.prefix = self.workflow.prefix or defaults.prefix
         self.init_registry(registry, plain_http)
 
         # Running modes (we only allow kubernetes for now)

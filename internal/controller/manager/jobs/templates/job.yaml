@@ -5,8 +5,10 @@ name: {{ .Job.Name }}
 # container image for createsims (should be loaded into cluster)
 image: {{ .Job.Image }}
 namespace: {{ if .StateMachine.Namespace }}{{ .StateMachine.Namespace }}{{ else }}default{{ end }}
+workdir:  {{ if .Job.Workdir }}{{ .Job.Workdir }}{{ else }}/tmp/out{{ end }}
 
-{{ if .Job.Registry }}
+
+{{ if .Job.HasRegistry }}
 registry:
   {{ if .Job.Registry.Push }}push: {{ .Job.Registry.Push }}{{ end }}
   {{ if .Job.Registry.Pull }}pull: {{ .Job.Registry.Pull }}{{ end }}

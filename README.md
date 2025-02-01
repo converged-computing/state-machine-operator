@@ -51,6 +51,20 @@ And apply the CRD to create the state machine. For interactive work, remember to
 kubectl apply -f examples/state-machine.yaml
 ```
 
+For the Mummi example (all code is private) see [examples/mummi](examples/mummi).
+
+### Job Variables
+
+For each job script section, the following environment variables are provided for your application:
+
+- jobid: the job identifer, which defaults to `job_` and can be set under the state machine workflow->prefix.
+- outpath: defaults to /tmp/out and is where your working directory will be, and where output is expected to be written.
+- registry: the registry where your artifact will be pushed
+  - pull_tag: the pull tag to use (if the workflow is pulling)
+  - push_tag: the push tag to use (if the workflow is pushing)
+
+Take a look at the simple example [examples/state-machine.yaml](examples/state-machine.yaml) to see how push/pull is defined between steps. Given that these are found (with a tag) your artifact will be named `<registry>:<jobid>:<tag>` to be moved between steps.
+
 ## Design
 
 These are some design decisions I've made (of course open to discussion):

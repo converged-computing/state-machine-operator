@@ -1,0 +1,163 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: mummi
+spec:
+  manager:
+    pullPolicy: Never
+    interactive: true
+  workflow:
+    completed: 1
+    prefix: "structure_"
+
+  cluster:
+    maxSize: 6
+
+  jobs:
+  - name: mlrunner
+    config:
+      nodes: 1
+      gpus: 0
+      nproc: 1
+      coresPerTask: 6
+      command: "/root/.pixi/bin/pixi run --manifest-path /pixi-env/pixi.toml bash /workdir/entrypoint.sh"
+
+    image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:mlrunner
+    script: |
+      mummi_mlserver_nnodes=1
+      MUMMI_APP=/opt/clones/mummi-ras
+      export MUMMI_ROOT=$MUMMI_APP
+      export MUMMI_RESOURCES=/opt/clones/mummi_resources
+      export MUMMI_APP
+      cmd="mummi-ml start {% for jobid in jobids %}--jobid {{jobid}} {% endfor %} --config={{ configfile }} --outdir=${outpath} --tag mlrunner --plain-http --registry=${registry}"
+      mkdir -p /opt/clones/extract
+      cd /opt/clones/extract
+      tar -xzvf /opt/clones/model.tar.gz
+      extracted=$(ls /opt/clones/extract)
+      cd -
+      mv /opt/clones/extract/${extracted} /opt/clones/mummi_resources/ml/chonky-model
+      NUM_THREADS=$(nproc)
+      export OMP_NUM_THREADS=$NUM_THREADS
+      export KERAS_BACKEND='theano'
+      umask 007
+      python $MUMMI_APP/mummi_ras/scripts/create_organization.py
+      echo "$cmd"
+      $cmd
+
+    appConfig: |
+      workspace:
+        path:
+          eval: mummi_ras.Naming.dir_root('mlserver')
+      encoder:
+        path: /opt/clones/mummi_resources/ml
+        model: "chonky-model"
+        cg_positions: "CG_pos_data_summary_pos_dis_C1_v1.npz"
+      sampler:
+        interpolator: "ot_feedback"
+        pre_computed: ""
+        outpath:
+          eval: mummi_ras.Naming.dir_root('ml')
+        feedback:
+          do_feedback: true
+          database: "db-feedback-sampling.npz"
+          frame_database: "db-feedback-frames.npz"
+        factor_extra_structures: 2
+        kneighbors: 10
+        lambda_lowerbound: 0
+        lambda_upperbound: 1
+        num_iter_max: 1000000
+        sub_sample_frac: 0.051
+      generator:
+        outpath:
+          eval: mummi_ras.Naming.dir_root('ml')
+      validator:
+        healing: true
+        cleanup: true # Remove all the temporary files generated during validations
+        outpath:
+          eval: mummi_ras.Naming.dir_root('ml')
+        resources: "martini3-validator"
+        complex: "ras-rbdcrd-ref-CG.gro"
+
+  - name: createsim
+    config:
+      nodes: 1
+      nproc: 1
+      coresPerTask: 6
+      gpus: 0
+      walltime: '0:45:00'
+
+    image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:createsims
+    registry:
+      pull: mlrunner
+      push: createsim
+    script: |
+      . ~/.bash_profile
+      MUMMI_APP=/opt/clones/mummi-ras MUMMI_ROOT=$MUMMI_APP
+      MUMMI_RESOURCES=/opt/clones/mummi_resources
+      export MUMMI_ROOT MUMMI_APP MUMMI_RESOURCES
+      export OMP_NUM_THREADS=6
+      splitup=(${jobid//_/ })
+      simdir=$(echo ${splitup[1]})
+      simname=${jobid}
+      locpath=/tmp/workdir
+      mv /tmp/out ${locpath}
+      mkdir -p ${outpath}; cd ${locpath}
+      mkdir ${simdir}
+      cp *.gro ${simdir}/${jobid}.gro
+      mummi_createsim \
+        --fstype simple \
+        --patch ${jobid} \
+        --inpath $(pwd) \
+        --outpath $outpath \
+        --outlocal $locpath \
+        --logpath $locpath \
+        --loglevel 2 \
+        --gromacs gmx \
+        --mpi "gmx mdrun" \
+        --mini \
+        --mdrunopt " -ntmpi 1 -ntomp $OMP_NUM_THREADS -pin off" 2>&1 | tee createsims-log.out
+
+  - name: cganalysis
+    config:
+      nodes: 1
+      nproc: 1
+      coresPerTask: 3
+      gpus: 0
+
+    image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:cganalysis
+    registry:
+      pull: createsim
+      push: cganalysis
+    script: |
+      . ~/.bash_profile
+      MUMMI_APP=/opt/clones/mummi-ras MUMMI_ROOT=$MUMMI_APP
+      MUMMI_RESOURCES=/opt/clones/mummi_resources
+      export MUMMI_ROOT MUMMI_APP MUMMI_RESOURCES
+      export OMPI_COMM_WORLD_RANK=1
+      export OMP_NUM_THREADS=6
+      simname=${jobid}
+      locpath=/tmp/workdir
+      mv /tmp/out ${locpath}
+      mkdir -p ${outpath}; cd ${locpath} 
+      ls
+      tar -xzvf createsims-output.tar.gz || echo "Already extracted"
+      cd tmp/out
+      cframe=0
+      echo ">> xtclast = $xtclast, cframe = $cframe"
+      mummi_cganalysis \
+        --simname ${jobid} \
+        --path $locpath/tmp/out \
+        --pathremote $outpath \
+        --siminputs $outpath \
+        --fstype mummi \
+        --fbio mummi \
+        --simbin gmx \
+        --backend GROMACS_PARTS \
+        --simcores 6 \
+        --nprocs 1 \
+        --stopsimtime 50 \
+        --simruntime 0.1 \
+        --logstdout \
+        --loglevel 2 \
+        --mini \
+        --fcount $cframe 2>&1 | tee cganalysis-log.out

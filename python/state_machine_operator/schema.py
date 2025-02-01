@@ -21,6 +21,7 @@ state_machine_config_schema = {
             "required": ["completed"],
             "properties": {
                 "completed": {"type": "number", "default": 4},
+                "prefix": {"type": "string"},
             },
             "additionalProperties": False,
         },
@@ -78,7 +79,7 @@ state_machine_job_schema = {
     },
     "definitions": {
         "registry": {
-            "type": "object",
+            "type": ["object", "null"],
             "properties": {
                 # Job specific host / plain http can override the workflow
                 "host": {"type": "string"},
