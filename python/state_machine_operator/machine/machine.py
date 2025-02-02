@@ -103,10 +103,6 @@ def mark_failed(self, state_name=None):
     """
     Mark the current state failed (default) or another specific state.
     """
-    print("MARK FAILED")
-    import IPython
-
-    IPython.embed()
     state_name = state_name or self.current_state.id
     setattr(self, f"{state_name}_failure", True)
 

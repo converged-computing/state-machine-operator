@@ -51,6 +51,7 @@ retval=$?
 if [ $retval -eq 0 ];
   then
       # TODO add granularity of what result file to push
+	  cd $outpath
       echo "Job was successful, pushing result to $registry/${jobid}:{{ push }}"
 	  oras push {% if plain_http %}--plain-http{% endif %} $registry/${jobid}:{{ push }} .
   else

@@ -7,7 +7,7 @@ spec:
     pullPolicy: Never
     interactive: true
   workflow:
-    completed: 1
+    completed: 2
     prefix: "structure_"
 
   cluster:
@@ -115,7 +115,7 @@ spec:
         --gromacs gmx \
         --mpi "gmx mdrun" \
         --mini \
-        --mdrunopt " -ntmpi 1 -ntomp $OMP_NUM_THREADS -pin off" 2>&1 | tee createsims-log.out
+        --mdrunopt " -ntmpi 1 -ntomp $OMP_NUM_THREADS -pin off"
 
   - name: cganalysis
     config:
@@ -140,13 +140,11 @@ spec:
       mv /tmp/out ${locpath}
       mkdir -p ${outpath}; cd ${locpath} 
       ls
-      tar -xzvf createsims-output.tar.gz || echo "Already extracted"
-      cd tmp/out
       cframe=0
       echo ">> xtclast = $xtclast, cframe = $cframe"
       mummi_cganalysis \
         --simname ${jobid} \
-        --path $locpath/tmp/out \
+        --path $locpath \
         --pathremote $outpath \
         --siminputs $outpath \
         --fstype mummi \
@@ -160,4 +158,4 @@ spec:
         --logstdout \
         --loglevel 2 \
         --mini \
-        --fcount $cframe 2>&1 | tee cganalysis-log.out
+        --fcount $cframe

@@ -104,30 +104,37 @@ class WorkflowManager:
 
         active_jobs = set()
         completions = set()
+        failed_jobs = set()
 
         # The last step as success is a completion
         last_step = self.workflow.last_step
+
+        # Any failed jobs are not considered further
+        for job in jobs["failed"]:
+            jobid = job.metadata.labels.get(defaults.operator_label)
+            if jobid:
+                failed_jobs.add(jobid)
 
         # First assess completions - the last step that is completed
         # Any other success job (not in completion state) is considered active
         for job in jobs["success"]:
             jobid = job.metadata.labels.get(defaults.operator_label)
             step_name = job.metadata.labels.get("app")
-            if not jobid or not step_name or step_name != last_step:
+            if not jobid or not step_name or step_name != last_step or jobid in failed_jobs:
                 continue
             completions.add(jobid)
 
         # so we loop through fewer jobs here
         for job in jobs["running"] + jobs["queued"] + jobs["success"]:
             jobid = job.metadata.labels.get(defaults.operator_label)
-            if not jobid or jobid in completions:
+            if not jobid or jobid in completions or jobid in failed_jobs:
                 continue
 
             # Assume the job being active means we shouldnt
             # kick off another. We will need to eventually delete this chain
             # of jobs when the entire thing is done.
             active_jobs.add(jobid)
-        return {"completed": completions, "active": active_jobs, "jobs": jobs}
+        return {"completed": completions, "active": active_jobs, "jobs": jobs, "failed": failed_jobs}
 
     def init_state(self):
         """
@@ -303,19 +310,19 @@ class WorkflowManager:
                 state_machine.mark_succeeded()
                 state_machine.change()
 
-                # Check to see if we should submit new jobs
-                self.new_jobs()
-
             # The job just completed and failed, clean up.
-            if job.status.failed == 1 and job.status.completion_time is not None:
+            if job.status.failed == 1:                
                 LOGGER.debug(f"Job {jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.
                 state_machine.mark_failed()
                 # Deleting the state machine means we stop tracking it
-                del self.trackers[jobid]
-                continue
+                if jobid in self.trackers:
+                    del self.trackers[jobid]
 
             # TODO: this triggers on events, but we might want to also trigger the check at some frequency
             # This should work if a completion always runs it, however
             self.check_complete()
+
+            # Check to see if we should submit new jobs
+            self.new_jobs()
