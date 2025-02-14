@@ -158,10 +158,6 @@ class KubernetesJob:
             resources=resources,
         )
 
-        # Only add walltime if it's > 0 and not None
-        if step.walltime:
-            container.active_deadline_seconds = int(walltime)
-
         # Prepare volumes (with config map)
         volumes = [
             client.V1Volume(
@@ -201,6 +197,11 @@ class KubernetesJob:
                 "subdomain": subdomain,
             },
         }
+
+        # Only add walltime if it's > 0 and not None
+        if walltime:
+            LOGGER.info(f"Adding walltime {walltime}")
+            template["spec"]["activeDeadlineSeconds"] = walltime
 
         # Do we want the job to terminate after failure?
         backoff_limit = 0

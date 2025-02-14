@@ -134,7 +134,12 @@ class WorkflowManager:
             # kick off another. We will need to eventually delete this chain
             # of jobs when the entire thing is done.
             active_jobs.add(jobid)
-        return {"completed": completions, "active": active_jobs, "jobs": jobs, "failed": failed_jobs}
+        return {
+            "completed": completions,
+            "active": active_jobs,
+            "jobs": jobs,
+            "failed": failed_jobs,
+        }
 
     def init_state(self):
         """
@@ -308,10 +313,12 @@ class WorkflowManager:
             if job.status.succeeded == 1 and job.status.completion_time is not None:
                 LOGGER.debug(f"Job {jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
-                state_machine.change()
+                # Only change if we aren't complete
+                if state_machine.current_state.id != "complete":
+                    state_machine.change()
 
             # The job just completed and failed, clean up.
-            if job.status.failed == 1:                
+            if job.status.failed == 1:
                 LOGGER.debug(f"Job {jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.

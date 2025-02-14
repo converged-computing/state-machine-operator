@@ -96,7 +96,7 @@ class WorkflowConfig:
 
     @property
     def prefix(self):
-        return self.cfg['workflow'].get('prefix')
+        return self.cfg["workflow"].get("prefix")
 
     def set_registry(self, registry_host, plain_http=None):
         """
@@ -109,7 +109,6 @@ class WorkflowConfig:
         if plain_http is not None:
             self.cfg["registry"]["plain_http"] = plain_http
 
-    
     def load_jobs(self):
         """
         Load jobs into the workflow manager and ensure configs exist.

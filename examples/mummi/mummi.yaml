@@ -5,9 +5,9 @@ metadata:
 spec:
   manager:
     pullPolicy: Never
-    interactive: true
+    interactive: false
   workflow:
-    completed: 2
+    completed: 1
     prefix: "structure_"
 
   cluster:
@@ -21,7 +21,6 @@ spec:
       nproc: 1
       coresPerTask: 6
       command: "/root/.pixi/bin/pixi run --manifest-path /pixi-env/pixi.toml bash /workdir/entrypoint.sh"
-
     image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:mlrunner
     script: |
       mummi_mlserver_nnodes=1
@@ -29,7 +28,13 @@ spec:
       export MUMMI_ROOT=$MUMMI_APP
       export MUMMI_RESOURCES=/opt/clones/mummi_resources
       export MUMMI_APP
-      cmd="mummi-ml start {% for jobid in jobids %}--jobid {{jobid}} {% endfor %} --config={{ configfile }} --outdir=${outpath} --tag mlrunner --plain-http --registry=${registry}"
+      model="/opt/clones/mummi_resources/ml/chonky-model/CG_pos_data_summary_pos_dis_C1_v1.npz"
+      ws=/opt/clones/mummi-ras/mlserver
+      # Shared output for validator, sampler, and generator
+      mldir=/opt/clones/mummi-ras/mlserver
+      resources="martini3-validator"
+      complex="ras-rbdcrd-ref-CG.gro"
+      cmd="mummi-ml start {% for jobid in jobids %}--jobid {{jobid}} {% endfor %} --workspace=${ws} --outdir=${outpath} --tag mlrunner --device cpu --plain-http --registry=${registry} --encoder-model ${model} --ml-outdir=${mldir} --feedback --resources ${resources} --complex=${complex}"
       mkdir -p /opt/clones/extract
       cd /opt/clones/extract
       tar -xzvf /opt/clones/model.tar.gz
@@ -41,42 +46,20 @@ spec:
       export KERAS_BACKEND='theano'
       umask 007
       python $MUMMI_APP/mummi_ras/scripts/create_organization.py
+      # Trajectory feedback files
+      here=$(pwd)
+      feedback=/opt/clones/mummi-ras/feedback-cg2ml
+      mkdir -p ${feedback}
+      # These are named by date, but we are just getting all of them.
+      for tag in $(oras repo tags --plain-http $registry/cganalysis)
+        do
+           mkdir -p ${feedback}/${tag}
+           cd ${feedback}/${tag}
+           oras pull --plain-http $registry/cganalysis:$tag
+      done
+      cd $here
       echo "$cmd"
       $cmd
-
-    appConfig: |
-      workspace:
-        path:
-          eval: mummi_ras.Naming.dir_root('mlserver')
-      encoder:
-        path: /opt/clones/mummi_resources/ml
-        model: "chonky-model"
-        cg_positions: "CG_pos_data_summary_pos_dis_C1_v1.npz"
-      sampler:
-        interpolator: "ot_feedback"
-        pre_computed: ""
-        outpath:
-          eval: mummi_ras.Naming.dir_root('ml')
-        feedback:
-          do_feedback: true
-          database: "db-feedback-sampling.npz"
-          frame_database: "db-feedback-frames.npz"
-        factor_extra_structures: 2
-        kneighbors: 10
-        lambda_lowerbound: 0
-        lambda_upperbound: 1
-        num_iter_max: 1000000
-        sub_sample_frac: 0.051
-      generator:
-        outpath:
-          eval: mummi_ras.Naming.dir_root('ml')
-      validator:
-        healing: true
-        cleanup: true # Remove all the temporary files generated during validations
-        outpath:
-          eval: mummi_ras.Naming.dir_root('ml')
-        resources: "martini3-validator"
-        complex: "ras-rbdcrd-ref-CG.gro"
 
   - name: createsim
     config:
@@ -123,7 +106,6 @@ spec:
       nproc: 1
       coresPerTask: 3
       gpus: 0
-
     image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:cganalysis
     registry:
       pull: createsim
@@ -138,7 +120,7 @@ spec:
       simname=${jobid}
       locpath=/tmp/workdir
       mv /tmp/out ${locpath}
-      mkdir -p ${outpath}; cd ${locpath} 
+      mkdir -p ${outpath}; cd ${locpath}
       ls
       cframe=0
       echo ">> xtclast = $xtclast, cframe = $cframe"
@@ -151,6 +133,7 @@ spec:
         --fbio mummi \
         --simbin gmx \
         --backend GROMACS_PARTS \
+        --frameProcessBatchSize 1 \
         --simcores 6 \
         --nprocs 1 \
         --stopsimtime 50 \
@@ -159,3 +142,14 @@ spec:
         --loglevel 2 \
         --mini \
         --fcount $cframe
+      # Trajectory feedback file
+      retval=$?
+      if [[ "$retval" == "0" ]]; then
+          echo "Successful run found. Pushing feedback"
+          for directory in $(ls /opt/clones/mummi-ras/feedback-cg2ml)
+            do
+             cd /opt/clones/mummi-ras/feedback-cg2ml/${directory}
+            timestamp=$(date "+%Y-%m-%d_%H-%M-%S")
+            oras push --plain-http $registry/cganalysis:feedback-$timestamp .
+          done
+      fi
