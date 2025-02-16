@@ -117,7 +117,7 @@ spec:
       simname=${jobid}
       locpath=/tmp/workdir
       mv /tmp/out ${locpath}
-      mkdir -p ${outpath}; cd ${locpath} 
+      mkdir -p ${outpath}; cd ${locpath}
       ls
       cframe=0
       echo ">> xtclast = $xtclast, cframe = $cframe"
@@ -152,6 +152,5 @@ spec:
           done
       else
           echo "Simulation was not successful."
-          exit $retval    
+          exit $retval
       fi
-

@@ -1,7 +1,8 @@
-import os
 from logging import getLogger
 
 from kubernetes import client, config
+
+from .job import Job, get_namespace
 
 LOGGER = getLogger(__name__)
 
@@ -42,16 +43,6 @@ def running_jobs(namespace=None):
     ]
 
 
-def get_namespace():
-    """
-    Get the current namespace the workflow manager is running in.
-    """
-    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-    if os.path.exists(ns_path):
-        with open(ns_path) as f:
-            return f.read().strip()
-
-
 def list_jobs_by_status(label_name="app", label_value=None):
     """
     Return a lookup of jobs by status
@@ -69,7 +60,7 @@ def list_jobs_by_status(label_name="app", label_value=None):
     for job in jobs:
         # Success means we finished with succeeded condition
         if job.status.succeeded == 1 and job.status.completion_time is not None:
-            states["success"].append(job)
+            states["success"].append(Job(job))
             continue
 
         # Failure means we finished with failed condition
@@ -79,14 +70,14 @@ def list_jobs_by_status(label_name="app", label_value=None):
 
         # Not active, and not finished is queued
         if not job.status.active and not job.status.completion_time:
-            states["queued"].append(job)
+            states["queued"].append(Job(job))
             continue
 
         # Active, and not finished is running
         if job.status.active == 1 and not job.status.completion_time:
-            states["running"].append(job)
+            states["running"].append(Job(job))
             continue
 
         # If it didn't fail or succeed, let it keep going to timeout (duration/walltime)
-        states["unknown"].append(job)
+        states["unknown"].append(Job(job))
     return states

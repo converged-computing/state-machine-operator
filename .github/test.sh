@@ -16,7 +16,7 @@ while true
   kubectl get pods
   # We need 12 completed (successful) jobs
   counter=0
-  for job in $(kubectl get jobs -o json | jq -r .items[].metadata.name)  
+  for job in $(kubectl get jobs -o json | jq -r .items[].metadata.name)
     do
       failed_status=$(kubectl get job $job -o jsonpath={.status.failed})
       success_status=$(kubectl get job $job -o jsonpath={.status.succeeded})
@@ -32,8 +32,7 @@ while true
   if [[ "$counter" == "12" ]]; then
      echo "Workflow completed successfully"
      break
-  fi 
+  fi
 done
 
 kubectl logs $manager
-

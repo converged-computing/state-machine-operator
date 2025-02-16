@@ -1,2 +1,17 @@
-from .state import get_namespace, list_jobs, list_jobs_by_status, queued_jobs, running_jobs
-from .tracker import KubernetesTracker
+import state_machine_operator.defaults as defaults
+
+
+def load(name):
+    """
+    Get a tracker module. We put imports here in case we don't
+    need / want to import the scheduler-specific libraries.
+    """
+    tracker = None
+    name = name.lower()
+    if name == "kubernetes":
+        import state_machine_operator.tracker.kubernetes as tracker
+    # elif name == "flux":
+    #    import state_machine_operator.tracker.flux as tracker
+    if tracker is None:
+        raise ValueError(f"Cannot match tracker to scheduler {name}")
+    return tracker

@@ -1,10 +1,10 @@
 # state-machine-operator
 
-> State machines in Kubernetes 🐦‍🔥
+> State machines in Kubernetes (and coming soon, Flux)! 🐦‍🔥
 
 ![img/state-machine-operator.png](img/state-machine-operator.png)
 
-The operator (Kubernetes) part will be added soon! Right now we have the configs that create the state machine and orchestrate the work.
+The Kubernetes operator provided here works with the [python library](python) of the same name, which can be used on bare metal (without the operator) to orchestrate jobs in Flux. Both are state machines and event driven.
 
 ## Usage
 

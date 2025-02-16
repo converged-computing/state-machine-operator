@@ -64,7 +64,7 @@ def init_trackers(self):
     for state_name, state in self.states_map.items():
         if state_name in ["start", "complete"]:
             continue
-        self.trackers[state_name] = tracker.KubernetesTracker(state_name, self.workflow)
+        self.trackers[state_name] = self.tracker.Tracker(state_name, self.workflow)
 
 
 def is_running(self, state_name=None):
@@ -154,7 +154,7 @@ def on_change(self):
     tracker.submit_job(self.jobid)
 
 
-def new_state_machine(config, jobid):
+def new_state_machine(config, jobid, tracker_type="kubernetes"):
     """
     New state machine creates a new JobStateMachine.
 
@@ -183,6 +183,7 @@ def new_state_machine(config, jobid):
         "jobid": jobid,
         "init_trackers": init_trackers,
         "workflow": config,
+        "tracker": tracker.load(tracker_type),
         "next_step_config": next_step_config,
     }
 

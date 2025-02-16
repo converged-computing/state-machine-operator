@@ -7,4 +7,4 @@ workdir = "/tmp/out"
 
 # Prefix for job names
 prefix = "job_"
-supported_schedulers = [scheduler]
+supported_schedulers = [scheduler, "flux"]
