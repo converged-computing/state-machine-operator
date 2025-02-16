@@ -6,8 +6,6 @@ import math
 import random
 import sys
 
-from kubernetes import client, config, watch
-
 import state_machine_operator.defaults as defaults
 import state_machine_operator.tracker as tracker
 from state_machine_operator.machine import new_state_machine
@@ -42,18 +40,9 @@ class WorkflowManager:
                 f"{self.scheduler} is not valid, please choose from {defaults.supported_schedulers}"
             )
 
-        # Load connection to kubernetes
-        if self.scheduler == "kubernetes":
-            self.load_kubernetes_config()
-
-    def load_kubernetes_config(self):
-        """
-        First try for in cluster config, then fall back to external.
-        """
-        try:
-            config.load_incluster_config()
-        except Exception:
-            config.load_config()
+        # Initialize tracker class
+        # This currently assumes one kind of tracker (flux or kubernetes)
+        self.tracker = tracker.load(self.scheduler)
 
     def init_registry(self, registry, plain_http=None):
         """
@@ -95,7 +84,7 @@ class WorkflowManager:
         that coincide with the same data the states were derived from.
         """
         # Get jobs that are in the first stage to determine sequences active
-        jobs = tracker.list_jobs_by_status()
+        jobs = self.tracker.list_jobs_by_status()
 
         # Give a warning about unknown jobs
         # In practice, I don't know why this would happen.
@@ -111,29 +100,30 @@ class WorkflowManager:
 
         # Any failed jobs are not considered further
         for job in jobs["failed"]:
-            jobid = job.metadata.labels.get(defaults.operator_label)
-            if jobid:
-                failed_jobs.add(jobid)
+            if job.jobid:
+                failed_jobs.add(job.jobid)
 
         # First assess completions - the last step that is completed
         # Any other success job (not in completion state) is considered active
         for job in jobs["success"]:
-            jobid = job.metadata.labels.get(defaults.operator_label)
-            step_name = job.metadata.labels.get("app")
-            if not jobid or not step_name or step_name != last_step or jobid in failed_jobs:
+            if (
+                not job.jobid
+                or not job.step_name
+                or job.step_name != last_step
+                or job.jobid in failed_jobs
+            ):
                 continue
-            completions.add(jobid)
+            completions.add(job.jobid)
 
         # so we loop through fewer jobs here
         for job in jobs["running"] + jobs["queued"] + jobs["success"]:
-            jobid = job.metadata.labels.get(defaults.operator_label)
-            if not jobid or jobid in completions or jobid in failed_jobs:
+            if not job.jobid or job.jobid in completions or job.jobid in failed_jobs:
                 continue
 
             # Assume the job being active means we shouldnt
             # kick off another. We will need to eventually delete this chain
             # of jobs when the entire thing is done.
-            active_jobs.add(jobid)
+            active_jobs.add(job.jobid)
         return {
             "completed": completions,
             "active": active_jobs,
@@ -161,18 +151,16 @@ class WorkflowManager:
         # Create a new state machine per active job. By the time we get here,
         # we already know there is a step name and jobid
         for job in active_jobs:
-            jobid = job.metadata.labels.get(defaults.operator_label)
-            step_name = job.metadata.labels["app"]
 
             # Get existing or new state machine for it
-            if jobid in self.trackers:
-                state_machine = self.trackers[jobid]
+            if job.jobid in self.trackers:
+                state_machine = self.trackers[job.jobid]
             else:
-                state_machine = new_state_machine(self.workflow, jobid)()
+                state_machine = new_state_machine(self.workflow, job.jobid, self.scheduler)()
 
             # The job is active, kick off the next steps
-            state_machine.mark_running(step_name)
-            self.trackers[jobid] = state_machine
+            state_machine.mark_running(job.step_name)
+            self.trackers[job.jobid] = state_machine
 
         LOGGER.info(f"Manager running with {len(completed_jobs)} job sequence completions.")
         # TODO we likely want some logic to cleanup failed
@@ -249,7 +237,7 @@ class WorkflowManager:
 
             # Create a new state machine with job trackers, and change
             # change goes into the first state (the first step to submit)
-            state_machine = new_state_machine(self.workflow, jobid)()
+            state_machine = new_state_machine(self.workflow, jobid, self.scheduler)()
             state_machine.change()
             self.trackers[jobid] = state_machine
 
@@ -290,42 +278,37 @@ class WorkflowManager:
         accordingly.
         """
         # TODO we should have some kind of timeout that does not rely on an event
-        batch_v1 = client.BatchV1Api()
-        w = watch.Watch()
-        for event in w.stream(batch_v1.list_namespaced_job, namespace=tracker.get_namespace()):
-            job = event["object"]
-            jobid = job.metadata.labels["jobid"]
-            step_name = job.metadata.labels["app"]
+        for job in self.tracker.stream_events():
 
             # Not a job associated with the workflow, or is ignored
-            if not jobid or not step_name or jobid not in self.trackers:
+            if not job.jobid or not job.step_name or job.jobid not in self.trackers:
                 continue
 
             # Get the state machine for the job
-            state_machine = self.trackers[jobid]
+            state_machine = self.trackers[job.jobid]
 
             # The job is active and not finished, keep going
             # This status will trigger when it's created (after submit)
-            if job.status.active == 1 and job.status.completion_time is None:
+            if job.is_active() and not job.is_completed():
                 continue
 
             # The job just completed and ran successfully, trigger the next step
-            if job.status.succeeded == 1 and job.status.completion_time is not None:
-                LOGGER.debug(f"Job {jobid} completed stage '{state_machine.current_state.id}'")
+            if job.is_succeeded() and job.is_completed():
+                LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
                 # Only change if we aren't complete
                 if state_machine.current_state.id != "complete":
                     state_machine.change()
 
             # The job just completed and failed, clean up.
-            if job.status.failed == 1:
-                LOGGER.debug(f"Job {jobid} failed stage '{state_machine.current_state.id}'")
+            if job.is_failed():
+                LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.
                 state_machine.mark_failed()
                 # Deleting the state machine means we stop tracking it
-                if jobid in self.trackers:
-                    del self.trackers[jobid]
+                if job.jobid in self.trackers:
+                    del self.trackers[job.jobid]
 
             # TODO: this triggers on events, but we might want to also trigger the check at some frequency
             # This should work if a completion always runs it, however

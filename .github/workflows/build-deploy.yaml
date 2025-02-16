@@ -24,7 +24,7 @@ jobs:
       if: (github.event_name == 'release')
       run: |
         tag=${GITHUB_REF#refs/tags/}
-        echo "Tagging and releasing ${{ env.container}}:${tag}"        
+        echo "Tagging and releasing ${{ env.container}}:${tag}"
         docker tag ${{ env.container }}:latest ${{ env.container }}:${tag}
 
     - name: GHCR Login

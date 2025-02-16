@@ -216,7 +216,7 @@ test-deploy-ci: manifests kustomize manager helm
 	docker build --no-cache -t ${DEVIMG} .
 	kind load docker-image ${MANAGER_IMG}
 	kind load docker-image ${DEVIMG}
-	helm install --set controllerManager.manager.imagePullPolicy=Never --set controllerManager.manager.tag=test smo ./chart 
+	helm install --set controllerManager.manager.imagePullPolicy=Never --set controllerManager.manager.tag=test smo ./chart
 
 .PHONY: test-deploy-kind
 test-deploy-kind: test-deploy manager
@@ -232,10 +232,10 @@ undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.
 helmify: $(HELMIFY) ## Download helmify locally if necessary.
 $(HELMIFY): $(LOCALBIN)
 	test -s $(LOCALBIN)/helmify || GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@latest
-    
+
 helm: manifests kustomize helmify
 	$(KUSTOMIZE) build config/default | $(HELMIFY)
-	
+
 ##@ Dependencies
 
 ## Location to install dependencies to
