@@ -23,8 +23,10 @@ cd -
 
 	preamble = `
 jobid="{{ jobid }}"
-outpath="{{ outpath }}"
+outpath="{{ workdir }}"
 registry="{{ registry }}"
+{% if pull %}pull_tag={{ pull }}{% endif %}
+{% if push %}push_tag={{ push }}{% endif %}
 
 echo ">> jobid        = $jobid"
 echo ">> outpath      = $outpath"
@@ -49,6 +51,7 @@ retval=$?
 if [ $retval -eq 0 ];
   then
       # TODO add granularity of what result file to push
+	  cd $outpath
       echo "Job was successful, pushing result to $registry/${jobid}:{{ push }}"
 	  oras push {% if plain_http %}--plain-http{% endif %} $registry/${jobid}:{{ push }} .
   else
@@ -81,6 +84,11 @@ func populateJobDefaults(job *api.JobStep) {
 	if job.Script != "" {
 		job.Script = preamble + install_oras + pull_oras + job.Script + push_oras
 		job.Script = strings.ReplaceAll(job.Script, "\n", "\n  ")
+	}
+
+	// Same needs to be done for appconfig
+	if job.AppConfig != "" {
+		job.AppConfig = strings.ReplaceAll(job.AppConfig, "\n", "\n  ")
 	}
 }
 

@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from logging import getLogger
 
 from jinja2 import Template
@@ -40,11 +41,13 @@ class KubernetesJob:
         This includes the entrypoint, along with the entire
         script (config) that is provided for the app to use.
         """
+        config = json.dumps(self.job_desc, indent=4)
+        app_config = self.job_desc.get("app-config") or ""
         cm = client.V1ConfigMap(
             api_version="v1",
             kind="ConfigMap",
             metadata=client.V1ObjectMeta(name=name, namespace=self.namespace),
-            data={"entrypoint": content, "config": json.dumps(self.job_desc, indent=4)},
+            data={"entrypoint": content, "config": config, "app-config": app_config},
         )
         with client.ApiClient() as api_client:
             api = client.CoreV1Api(api_client)
@@ -102,7 +105,7 @@ class KubernetesJob:
 
     def generate_batch_job(self, step, configmap_name, jobid):
         """
-        Generate the job CRD assuming the config map entrypoitn.
+        Generate the job CRD assuming the config map entrypoint.
         """
         step_name = self.job_desc["name"]
         job_name = (f"{step_name}-{configmap_name}").replace("_", "-")
@@ -110,7 +113,6 @@ class KubernetesJob:
         metadata = client.V1ObjectMeta(name=job_name)
 
         # Command should just execute entrypoint - keep it simple for now
-        command = self.config.get("command") or ["/bin/bash", "/workdir/entrypoint.sh"]
         ncores = (step.cores_per_task or 1) * step.nodes
 
         # Raise an exception if ncores is 0
@@ -137,6 +139,7 @@ class KubernetesJob:
 
         # Subdomain for any kubernetes network
         subdomain = self.config.get("subdomain", "r")
+        command = self.command
 
         # Job container to run the script
         container = client.V1Container(
@@ -155,10 +158,6 @@ class KubernetesJob:
             resources=resources,
         )
 
-        # Only add walltime if it's > 0 and not None
-        if step.walltime:
-            container.active_deadline_seconds = int(walltime)
-
         # Prepare volumes (with config map)
         volumes = [
             client.V1Volume(
@@ -172,7 +171,11 @@ class KubernetesJob:
                         ),
                         client.V1KeyToPath(
                             key="config",
-                            path="app-config.json",
+                            path="config.json",
+                        ),
+                        client.V1KeyToPath(
+                            key="app-config",
+                            path="app-config",
                         ),
                     ],
                 ),
@@ -195,6 +198,11 @@ class KubernetesJob:
             },
         }
 
+        # Only add walltime if it's > 0 and not None
+        if walltime:
+            LOGGER.info(f"Adding walltime {walltime}")
+            template["spec"]["activeDeadlineSeconds"] = walltime
+
         # Do we want the job to terminate after failure?
         backoff_limit = 0
         if self.config.get("retry_failure") in true_options:
@@ -214,6 +222,18 @@ class KubernetesJob:
             metadata=metadata,
             spec=spec,
         )
+
+    @property
+    def command(self):
+        """
+        Derive the application command, falling back to the entrypoint.sh
+        """
+        command = self.config.get("command")
+        if command is not None and isinstance(command, list):
+            command = " ".join(command)
+
+        command = command or "/bin/bash /workdir/entrypoint.sh"
+        return shlex.split(command)
 
     def submit(self, step, jobid):
         """
@@ -394,6 +414,14 @@ class KubernetesTracker:
             return plain_http
         return self.workflow.registry_plain_http
 
+    @property
+    def push_to(self):
+        return self.job_desc.get("registry", {}).get("push")
+
+    @property
+    def pull_from(self):
+        return self.job_desc.get("registry", {}).get("pull")
+
     def create_step(self, jobid):
         """
         Create job parameters for a Kubernetes Job CRD
@@ -415,10 +443,11 @@ class KubernetesTracker:
             kwargs = {
                 "jobids": [jobid],
                 "jobid": jobid,
-                "configjson": "/workdir/app-config.json",
+                # This can be in any format.
+                "configfile": "/workdir/app-config",
                 "workdir": workdir,
-                "pull": self.workflow.pull_from,
-                "push": self.workflow.push_to,
+                "pull": self.pull_from,
+                "push": self.push_to,
                 "registry": self.registry_host,
                 "plain_http": self.registry_plain_http,
             }

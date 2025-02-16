@@ -8,6 +8,7 @@ cp -R /state_machine_operator /opt/jobs
 cat <<EOF > /opt/jobs/state-machine-workflow.yaml
 workflow:
   completed: {{ .Spec.Workflow.Completed }}
+  {{ if .Spec.Workflow.Prefix }}prefix: {{ .Spec.Workflow.Prefix }}{{ end }}
 cluster:
   max_size: {{ .Spec.Cluster.MaxSize }}
   autoscale: {{ .Spec.Cluster.Autoscale }}
