@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "chart.fullname" . }}-statemachine-viewer-role
+  labels:
+  {{- include "chart.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - state-machine.converged-computing.org
+  resources:
+  - statemachines
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - state-machine.converged-computing.org
+  resources:
+  - statemachines/status
+  verbs:
+  - get

@@ -63,9 +63,12 @@ jobs:
         kubectl_version: v1.28.2
         version: v0.20.0
         config: ./.github/test-kind-config.yaml 
-
+    - name: Install Helm
+      run: |
+        export HELM_EXPERIMENTAL_OCI=1
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash        
     - name: Deploy State Machine Operator
-      run: make test-deploy-kind && sleep 10
+      run: make test-deploy-ci && sleep 10
     - name: Test Workflow
       run: |
         kubectl apply -f ./examples/state-machine.yaml
