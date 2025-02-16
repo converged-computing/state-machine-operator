@@ -1,0 +1,75 @@
+name: test
+
+on:
+  pull_request: {}
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      packages: write
+    env:
+      container: ghcr.io/converged-computing/state-machine-operator
+    runs-on: ubuntu-latest
+    name: build controller
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Container
+      run: make docker-build
+    - name: Save Containers
+      run: docker save ${{ env.container }} | gzip > controller_latest.tar.gz
+
+    - name: Upload container artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: controller
+        path: controller_latest.tar.gz
+
+  test:
+    needs: [build]
+    env:
+      registry: ghcr.io/converged-computing
+      namespace: state-machine-operator-system
+      controller_container: ghcr.io/flux-framework/fluxqueue
+      scheduler_container: ghcr.io/flux-framework/fluxqueue-scheduler
+      postgres_container: ghcr.io/flux-framework/fluxqueue-postgres
+
+    runs-on: ubuntu-latest
+    name: test state machine operator
+    steps:
+    - uses: actions/checkout@v4
+    - name: Download controller artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: controller
+        path: /tmp
+
+    - name: Make Space For Build
+      run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          
+    - name: Load Docker images
+      run: |
+        ls /tmp/*.tar.gz
+        docker load --input /tmp/controller_latest.tar.gz
+        rm /tmp/controller_latest.tar.gz
+
+    - name: Create Kind Cluster
+      uses: helm/kind-action@v1.5.0
+      with:
+        cluster_name: kind
+        kubectl_version: v1.28.2
+        version: v0.20.0
+        config: ./.github/test-kind-config.yaml 
+    - name: Install Helm
+      run: |
+        export HELM_EXPERIMENTAL_OCI=1
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash        
+    - name: Deploy State Machine Operator
+      run: make test-deploy-ci && sleep 10
+    - name: Test Workflow
+      run: |
+        kubectl apply -f ./examples/state-machine.yaml
+        bash ./.github/test.sh

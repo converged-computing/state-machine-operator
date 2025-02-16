@@ -1,0 +1,253 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: statemachines.state-machine.converged-computing.org
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  labels:
+  {{- include "chart.labels" . | nindent 4 }}
+spec:
+  group: state-machine.converged-computing.org
+  names:
+    kind: StateMachine
+    listKind: StateMachineList
+    plural: statemachines
+    singular: statemachine
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: StateMachine is the Schema for the StateMachines API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: StateMachineSpec defines the desired state of StateMachine
+            properties:
+              cluster:
+                description: Cluster defines parameters for the cluster
+                properties:
+                  autoscale:
+                    description: Autoscale the cluster? (not implemented yet)
+                    type: boolean
+                  maxSize:
+                    description: MaxSize to allow autoscaling up to, or to submit jobs
+                      up to
+                    format: int32
+                    type: integer
+                required:
+                - maxSize
+                type: object
+              jobs:
+                description: StateMachine Job interface, each maps to K8s job
+                items:
+                  properties:
+                    appConfig:
+                      description: Custom data config to provide to worker
+                      type: string
+                    config:
+                      description: Configuration for the job
+                      properties:
+                        command:
+                          description: Command is a custom command entrypoint
+                          type: string
+                        coresPerTask:
+                          default: 3
+                          description: |-
+                            Cores per task per job
+                            6 frontier / 3 summit / 5 on lassen (vsoch: this used to be 6 default)
+                          format: int32
+                          type: integer
+                        gpulabel:
+                          description: |-
+                            A GPU label to use (in the context of ngpus >=1)
+                            if not provided, defaults to nvidia.com/gpu
+                          type: string
+                        gpus:
+                          description: GPUs per job
+                          format: int32
+                          type: integer
+                        nodes:
+                          default: 1
+                          description: Number of nodes per job
+                          format: int32
+                          type: integer
+                        nproc:
+                          default: 1
+                          description: Number of processes per job
+                          format: int32
+                          type: integer
+                        pullPolicy:
+                          default: IfNotPresent
+                          description: Pull policy for the container
+                          type: string
+                        retryFailure:
+                          description: |-
+                            If the job fails, try again? Defaults to false
+                            because we assume the initial data is bad.
+                            RetryFailure
+                          type: boolean
+                        walltime:
+                          description: Walltime (in string format) for the job
+                          type: string
+                      type: object
+                    image:
+                      description: |-
+                        Namespace is inherited from StateMachine Spec
+                        This is the continer image (required)
+                      type: string
+                    interactive:
+                      description: Run in interactive mode for debugging
+                      type: boolean
+                    name:
+                      description: Name is the name of the job (required)
+                      type: string
+                    registry:
+                      description: Configuration for the job registry
+                      properties:
+                        host:
+                          description: Override registry host for this job
+                          type: string
+                        plainHttp:
+                          default: true
+                          description: Override registry plain http for this job
+                          type: boolean
+                        pull:
+                          description: Tag to pull to
+                          type: string
+                        push:
+                          description: Tag to push to
+                          type: string
+                      type: object
+                    script:
+                      description: Script for the job to run
+                      type: string
+                    workdir:
+                      description: Working directory (and output path)
+                      type: string
+                  type: object
+                type: array
+              manager:
+                description: Manager is the state machine manager that orchestrates
+                  state machines
+                properties:
+                  coresPerNode:
+                    default: 4
+                    description: Cores per node (deafults to 4) maps to NCORES_PER_NODED
+                    format: int32
+                    type: integer
+                  image:
+                    description: container image for the workflow manager (must be provided)
+                    type: string
+                  interactive:
+                    description: Run in interactive debug mode (sleep infinity)
+                    type: boolean
+                  maxNodes:
+                    description: |-
+                      Maximum nodes to allow cluster to scale to (that jobs add up to)
+                      If unset, will default to Nodes above (N=6)
+                    format: int32
+                    type: integer
+                  pullPolicy:
+                    default: IfNotPresent
+                    description: Image pull policy (e.g., Always, Never, etc.)
+                    type: string
+                  replicas:
+                    default: 1
+                    description: Replicas for the deployment
+                    format: int32
+                    type: integer
+                  subdomain:
+                    default: r
+                    description: Subdomain to use
+                    type: string
+                type: object
+              registry:
+                description: |-
+                  The OCI Registry as Storage configuration
+                  This is how to expect to upload artifacts (output) generated
+                  This is used in the mlserver, wfmanager, and jobs
+                  Registry configuration should go here
+                properties:
+                  TLSVerify:
+                    description: Assume we don't need to verify
+                    type: boolean
+                  host:
+                    description: |-
+                      Note that the host is generated based on the registry name
+                      # E.g., oras push <host>/<uri>:<sample> --plain-http .
+                      If no external registry is used, we use the internal one here
+                      e.g., host is: registry-0.mini-mummi.default.svc.cluster.local:5000
+                    type: string
+                  image:
+                    default: ghcr.io/oras-project/registry:latest
+                    description: Container image
+                    type: string
+                  name:
+                    default: registry
+                    description: Name for the registry (defaults to registry)
+                    type: string
+                  plainHttp:
+                    description: Assume the registry doesn't use plain http
+                    type: boolean
+                  port:
+                    description: Port to use to interact with the registry
+                    format: int32
+                    type: integer
+                  pullPolicy:
+                    default: IfNotPresent
+                    description: Image pull policy (e.g., Always, Never, etc.)
+                    type: string
+                  replicas:
+                    default: 1
+                    description: Replicas for the registry deployment
+                    format: int32
+                    type: integer
+                type: object
+              workflow:
+                description: Workflow is the workflow parameters to orchestrate
+                properties:
+                  completed:
+                    description: Number of state machine sequences required for completion
+                    format: int32
+                    type: integer
+                  prefix:
+                    description: Prefix for jobs (e.g., structure_ for mummi)
+                    type: string
+                required:
+                - completed
+                type: object
+            required:
+            - cluster
+            - workflow
+            type: object
+          status:
+            description: StateMachineStatus defines the observed state of StateMachine
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -26,6 +26,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
 # BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
 BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+HELMIFY ?= $(LOCALBIN)/helmify
 
 # USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
 # You can enable this value if you would like to use SHA Based Digests
@@ -210,6 +211,13 @@ test-deploy-recreate: test-deploy
 	kubectl delete -f ./examples/dist/state-machine-operator-dev.yaml || echo "Already deleted"
 	kubectl apply -f ./examples/dist/state-machine-operator-dev.yaml
 
+.PHONY: test-deploy-ci
+test-deploy-ci: manifests kustomize manager helm
+	docker build --no-cache -t ${DEVIMG} .
+	kind load docker-image ${MANAGER_IMG}
+	kind load docker-image ${DEVIMG}
+	helm install --set controllerManager.manager.imagePullPolicy=Never --set controllerManager.manager.tag=test smo ./chart 
+
 .PHONY: test-deploy-kind
 test-deploy-kind: test-deploy manager
 	kind load docker-image ${MANAGER_IMG}
@@ -220,6 +228,14 @@ test-deploy-kind: test-deploy manager
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
+.PHONY: helmify
+helmify: $(HELMIFY) ## Download helmify locally if necessary.
+$(HELMIFY): $(LOCALBIN)
+	test -s $(LOCALBIN)/helmify || GOBIN=$(LOCALBIN) go install github.com/arttor/helmify/cmd/helmify@latest
+    
+helm: manifests kustomize helmify
+	$(KUSTOMIZE) build config/default | $(HELMIFY)
+	
 ##@ Dependencies
 
 ## Location to install dependencies to

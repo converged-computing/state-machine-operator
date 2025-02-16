@@ -17,7 +17,7 @@ spec:
     config:
       nodes: 1
       nproc: 1
-      coresPerTask: 6
+      coresPerTask: 1
     image: rockylinux:9
     script: |
       # This will start in the config->workdir, and pull/push according to the config
@@ -28,7 +28,7 @@ spec:
     config:
       nodes: 1
       nproc: 1
-      coresPerTask: 6
+      coresPerTask: 1
     image: rockylinux:9
     registry:
       pull: job_a
@@ -41,7 +41,7 @@ spec:
     config:
       nodes: 1
       nproc: 1
-      coresPerTask: 6
+      coresPerTask: 1
     image: rockylinux:9
     registry:
       pull: job_b

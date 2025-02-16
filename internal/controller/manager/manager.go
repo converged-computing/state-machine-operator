@@ -24,6 +24,9 @@ func NewWorkflowManagerDeployment(spec *api.StateMachine) *appsv1.Deployment {
 	command := []string{"/bin/bash", "/state_machine_operator/entrypoint.sh"}
 	selector := spec.Selector()
 
+	// Label to indicate this is the manager
+	selector["component"] = "state-machine-manager"
+
 	// MLServer container
 	container := corev1.Container{
 		Name:            "manager",
