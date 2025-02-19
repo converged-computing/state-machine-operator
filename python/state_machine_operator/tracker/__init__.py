@@ -10,8 +10,8 @@ def load(name):
     name = name.lower()
     if name == "kubernetes":
         import state_machine_operator.tracker.kubernetes as tracker
-    # elif name == "flux":
-    #    import state_machine_operator.tracker.flux as tracker
+    elif name == "flux":
+        import state_machine_operator.tracker.flux as tracker
     if tracker is None:
         raise ValueError(f"Cannot match tracker to scheduler {name}")
     return tracker

@@ -6,9 +6,37 @@
 
 The Kubernetes operator provided here works with the [python library](python) of the same name, which can be used on bare metal (without the operator) to orchestrate jobs in Flux. Both are state machines and event driven.
 
-## Usage
+## Flux Usage
+
+To use alongside Flux, the easiest thing to do is work in the [.devcontainer](.devcontainer).
+
+### 1. Start Flux Instance
+
+If you aren't running in a system instance:
+
+```bash
+flux start --test-size=4
+```
+
+### 2. Install Development Library
+
+```bash
+sudo pip install -e ./python
+```
+
+### 3. Run a state machine workflow
+
+We can use the `state-machine-manager` executable directly to run a state machine. Note that in the Kubernetes operator, this is deployed as a Deployment, and a tracker created therein that knows how to create Kubernetes jobs.
+
+```bash
+state-machine-manager start ./examples/local/state-machine-workflow.yaml --config-dir=./examples/local --scheduler flux --filesystem
+```
+
+## Kubernetes Usage
 
 ### Prerequisites
+
+> These are for the Kubernetes deployment
 
 - go version v1.22.0+
 - docker version 17.03+.
@@ -79,6 +107,7 @@ These are some design decisions I've made (of course open to discussion):
 
 ### TODO
 
+- Make sure there are labels for each of kubernetes and flux to distuish jobs in the workflow vs. not.
 - We likely want to test with a real registry OR allow a volume bind (existing data) to the registry.
   - Otherwise, artifacts deleted on cleanup. We could also have an option that allows keeping the ephemeral registry.
 

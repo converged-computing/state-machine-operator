@@ -5,6 +5,7 @@ import logging
 import math
 import random
 import sys
+import tempfile
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.tracker as tracker
@@ -16,7 +17,15 @@ LOGGER = logging.getLogger(__name__)
 
 
 class WorkflowManager:
-    def __init__(self, workflow, scheduler=None, registry=None, plain_http=False):
+    def __init__(
+        self,
+        workflow,
+        scheduler=None,
+        filesystem=None,
+        workdir=None,
+        registry=None,
+        plain_http=False,
+    ):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
         but it makes sense to be on the class instance init. State is derived
@@ -28,12 +37,21 @@ class WorkflowManager:
         # Set any defaults if needed
         self.scheduler = scheduler or defaults.scheduler
         self.prefix = self.workflow.prefix or defaults.prefix
-        self.init_registry(registry, plain_http)
+        filesystem = filesystem or self.workflow.filesystem is not None
 
         # Running modes (we only allow kubernetes for now)
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
         LOGGER.info(f"  Scheduler: [{self.scheduler}]")
-        LOGGER.info(f"   Registry: [{self.registry}]")
+
+        if not filesystem:
+            self.init_registry(registry, plain_http)
+            LOGGER.info(f"   Registry: [{self.registry}]")
+        else:
+            # We want a filesystem but need to create a temporary location
+            if not self.workflow.filesystem:
+                filesystem = workdir or tempfile.mkdtemp()
+                self.workflow.set_filesystem(filesystem)
+            LOGGER.info(f"   Filesystem: [{filesystem}]")
 
         if self.scheduler not in defaults.supported_schedulers:
             raise ValueError(
@@ -151,7 +169,6 @@ class WorkflowManager:
         # Create a new state machine per active job. By the time we get here,
         # we already know there is a step name and jobid
         for job in active_jobs:
-
             # Get existing or new state machine for it
             if job.jobid in self.trackers:
                 state_machine = self.trackers[job.jobid]
@@ -279,7 +296,6 @@ class WorkflowManager:
         """
         # TODO we should have some kind of timeout that does not rely on an event
         for job in self.tracker.stream_events():
-
             # Not a job associated with the workflow, or is ignored
             if not job.jobid or not job.step_name or job.jobid not in self.trackers:
                 continue

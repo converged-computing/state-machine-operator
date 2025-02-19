@@ -74,14 +74,14 @@ class WorkflowConfig:
         """
         Get the registry host
         """
-        return self.cfg["registry"].get("host") or defaults.registry
+        return self.cfg.get("registry", {}).get("host") or defaults.registry
 
     @property
     def registry_plain_http(self):
         """
         Determine if the registry supports plain http.
         """
-        plain_http = self.cfg["registry"].get("plain_http")
+        plain_http = self.cfg.get("registry", {}).get("plain_http")
         if plain_http is None:
             return True
         return plain_http
@@ -97,6 +97,18 @@ class WorkflowConfig:
     @property
     def prefix(self):
         return self.cfg["workflow"].get("prefix")
+
+    def set_filesystem(self, path):
+        """
+        Set a filesystem path in the workflow
+        """
+        if "filesystem" not in self.cfg:
+            self.cfg["filesystem"] = {}
+        self.cfg["filesystem"]["path"] = path
+
+    @property
+    def filesystem(self):
+        return self.cfg.get("filesystem", {}).get("path")
 
     def set_registry(self, registry_host, plain_http=None):
         """
