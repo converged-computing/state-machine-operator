@@ -295,31 +295,7 @@ class KubernetesTracker(BaseTracker):
 
     def __init__(self, job_name, workflow):
         super().__init__(job_name, workflow)
-        self.adapter = KubernetesJob(self.job_desc)
-
-    def submit_job(self, jobid):
-        """
-        Submit a job to Kubernetes.
-        """
-        step = self.create_step(jobid)
-        LOGGER.debug(f"[{self.type}] submitting job {jobid}")
-        submit_record = self.adapter.submit(step, jobid)
-
-        # A conflcit means the job is already running. We don't want to count
-        # it as a new submit (it will already be represented in the state)
-        if submit_record.status == SubmissionCode.CONFLICT:
-            LOGGER.error(
-                f"[{self.type}] Found already running {self.type} job (Conflict) for job {jobid}"
-            )
-
-        # Allow it to fail and attempt cleanup
-        elif not submit_record or submit_record.status != SubmissionCode.OK:
-            LOGGER.error(f"[{self.type}] Failed to submit a {self.type} job for {jobid}")
-            self.adapter.cleanup(step.name)
-
-        else:
-            LOGGER.debug(f"[{self.type}] Started job {jobid}")
-        return submit_record
+        self.adapter = KubernetesJob(self.job_desc, workflow)
 
     def create_step(self, jobid):
         """

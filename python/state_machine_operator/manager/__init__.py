@@ -1,11 +1,6 @@
 import argparse
-import os
 import platform
-import signal
 import sys
-import traceback
-
-import yaml
 
 import state_machine_operator
 import state_machine_operator.defaults as defaults
@@ -50,6 +45,16 @@ def get_parser():
     start.add_argument(
         "--registry",
         help="Workflow registry to push/pull artifacts",
+    )
+    start.add_argument(
+        "--filesystem",
+        help="Use local filesystem for output instead.",
+        default=False,
+        action="store_true",
+    )
+    start.add_argument(
+        "--workdir",
+        help="Use this working directory for the workflow (will default to temporary location if not set).",
     )
     start.add_argument(
         "--config-dir",
@@ -99,6 +104,8 @@ def main():
         workflow,
         scheduler=args.scheduler,
         registry=args.registry,
+        filesystem=args.filesystem,
+        workdir=args.workdir,
         plain_http=args.plain_http,
     )
     manager.start()

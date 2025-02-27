@@ -25,6 +25,13 @@ state_machine_config_schema = {
             },
             "additionalProperties": False,
         },
+        "filesystem": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
         "registry": {
             "type": "object",
             "properties": {

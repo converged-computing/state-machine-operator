@@ -31,3 +31,4 @@ class JobSetup:
     script: str = None
     walltime: str = None
     gpus: int = 0
+    workdir: str = None

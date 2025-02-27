@@ -1,4 +1,11 @@
+import logging
 import os
+
+from state_machine_operator.tracker.types import SubmissionCode
+
+# Print debug for now
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
 
 
 class Job:
@@ -6,8 +13,13 @@ class Job:
     Base class for a job (with shared functions)
     """
 
-    def __init__(self, job_desc):
+    def __init__(self, job_desc, workflow, **kwargs):
         self.job_desc = job_desc
+        self.workflow = workflow
+
+        # Allow for arbitrary extra key value arguments
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     @property
     def config(self):
@@ -120,3 +132,27 @@ class BaseTracker:
     @property
     def pull_from(self):
         return self.job_desc.get("registry", {}).get("pull")
+
+    def submit_job(self, jobid):
+        """
+        Submit a job to Flux
+        """
+        step = self.create_step(jobid)
+        LOGGER.debug(f"[{self.type}] submitting job {jobid}")
+        submit_record = self.adapter.submit(step, jobid)
+
+        # A conflcit means the job is already running. We don't want to count
+        # it as a new submit (it will already be represented in the state)
+        if submit_record.status == SubmissionCode.CONFLICT:
+            LOGGER.error(
+                f"[{self.type}] Found already running {self.type} job (Conflict) for job {jobid}"
+            )
+
+        # Allow it to fail and attempt cleanup
+        elif not submit_record or submit_record.status != SubmissionCode.OK:
+            LOGGER.error(f"[{self.type}] Failed to submit a {self.type} job for {jobid}")
+            self.adapter.cleanup(step.name)
+
+        else:
+            LOGGER.debug(f"[{self.type}] Started job {jobid}")
+        return submit_record

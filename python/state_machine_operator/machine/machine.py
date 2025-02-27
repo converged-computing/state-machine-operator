@@ -38,7 +38,7 @@ def next_step_config(self, current_name):
     Get the config for the next step.
     """
     # If we are completed or at start, go back to first step
-    if current_name == "completed" or current_name == "start":
+    if current_name == "complete" or current_name == "start":
         next_step = self.workflow.first_step
     else:
         next_step = self.workflow.get_next_step(current_name)
@@ -61,7 +61,7 @@ def init_trackers(self):
     Create a job tracker for each job.
     """
     self.trackers = {}
-    for state_name, state in self.states_map.items():
+    for state_name, _ in self.states_map.items():
         if state_name in ["start", "complete"]:
             continue
         self.trackers[state_name] = self.tracker.Tracker(state_name, self.workflow)
@@ -203,12 +203,6 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
             extra_kwargs[f"{job}_failure"] = False
             events["change"].append({"from": "start", "to": job})
 
-        # If we are at the very last step, we add a completed state
-        # This is a state we move to on failure, or when it actually
-        # completes.
-        if i == len(config.jobs) - 1:
-            events["change"].append({"from": last, "to": "complete"})
-
         # This ensures we run a function to submit the job when
         # we change state, which means we successfully finished
         # the previous step
@@ -221,7 +215,10 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
 
     # Add last state (completed) and transition to it
     states["complete"] = {"initial": False, "final": True}
-    events["change"].append({"from": last, "to": "complete"})
+    events["change"].append({"from": job, "to": "complete", "cond": f"{job}_success"})
+    extra_kwargs[f"{job}_success"] = False
+    extra_kwargs[f"{job}_failure"] = False
+
     definition = {
         "states": states,
         "events": events,

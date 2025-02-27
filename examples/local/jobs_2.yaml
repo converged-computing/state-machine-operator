@@ -1,0 +1,9 @@
+name: job_c
+config:
+  nodes: 1
+  nproc: 1
+  coresPerTask: 1
+image: rockylinux:9
+script: |
+  sleep 20
+  echo "${jobid}" > ${jobid}-c.txt

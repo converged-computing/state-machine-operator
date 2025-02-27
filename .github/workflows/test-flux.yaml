@@ -1,0 +1,37 @@
+name: test-flux
+on:
+  pull_request: []
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        container: ['fluxrm/flux-sched:jammy']
+
+    container:
+      image: ${{ matrix.container }}
+      options: "--platform=linux/amd64 --user root -it --init"
+
+    name: ${{ matrix.container }}
+    steps:
+      - name: Make Space
+        run: |
+          rm -rf /usr/share/dotnet
+          rm -rf /opt/ghc
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install State Machine Operator
+        run: |
+          apt-get update && apt-get install -y python3-pip tree
+          sudo pip install -e ./python
+
+      - name: Start Flux and Run Workflow
+        run: |
+          flux start --test-size=4 state-machine-manager start ./examples/local/state-machine-workflow.yaml --config-dir=./examples/local --scheduler flux --filesystem --workdir /tmp/output
+          tree /tmp/output
