@@ -6,7 +6,7 @@ from logging import getLogger
 from jinja2 import Template
 
 import state_machine_operator.utils as utils
-from state_machine_operator.tracker.template import job_config
+from state_machine_operator.tracker.template import job_script
 from state_machine_operator.tracker.tracker import BaseTracker, Job
 from state_machine_operator.tracker.types import JobSetup, JobSubmission, SubmissionCode
 from state_machine_operator.tracker.utils import convert_walltime_to_seconds
@@ -40,8 +40,7 @@ class FluxJob(Job):
         """
         Generate the job CRD assuming the config map entrypoint.
         """
-        step_name = f"{self.job_desc['name']}"
-        job_name = f"{jobid}-{step_name}".replace("-", "_")
+        step_name = (f"{self.job_desc['name']}").replace("-", "_")
         walltime = convert_walltime_to_seconds(step.walltime or 0)
 
         # Command should just execute entrypoint - keep it simple for now
@@ -81,12 +80,16 @@ class FluxJob(Job):
         )
 
         # Set user attribute we can later retrieve to identify group
-        # TODO: the job name does not seem exposed in the Python API.
         jobspec.attributes["user"] = {
             "workflow": "state-machine",
             "app": step_name,
-            "jobname": job_name,
+            "jobname": jobid,
         }
+
+        # Add the job name
+        # TODO: ideally we can have the jobid and step
+        # The issue here is the terminal can't show them both
+        jobspec.attributes["system"]["job"] = {"name": step_name}
 
         # Do we have a working directory?
         if step.workdir:
@@ -170,7 +173,7 @@ class FluxTracker(BaseTracker):
                 "plain_http": self.registry_plain_http,
                 "script": script,
             }
-            step.script = Template(job_config).render(**kwargs)
+            step.script = Template(job_script).render(**kwargs)
 
         # Is there a walltime set?
         step.walltime = self.config.get("walltime", None)

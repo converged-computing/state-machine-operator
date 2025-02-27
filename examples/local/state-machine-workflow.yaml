@@ -2,7 +2,7 @@ workflow:
   completed: 6
   prefix: "structure_"
 cluster:
-  max_size: 1
+  max_size: 4
   autoscale: false
 jobs:
 - config: jobs_0.yaml

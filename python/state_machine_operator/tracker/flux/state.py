@@ -4,7 +4,7 @@ import flux
 import flux.job
 
 from .handle import get_handle
-from .job import Job
+from .job import Event as Job
 
 LOGGER = getLogger(__name__)
 
@@ -118,7 +118,6 @@ def list_jobs_by_status(label_name="app", label_value=None):
 
     # These are the lists we will populate.
     states = {"success": [], "failed": [], "running": [], "queued": [], "unknown": []}
-
     for job in jobs:
         if job["result"] == "COMPLETED" and job["success"]:
             states["success"].append(Job(job))
