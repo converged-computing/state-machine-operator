@@ -314,20 +314,14 @@ class WorkflowManager:
 
             # The job just completed and ran successfully, trigger the next step
             if job.is_succeeded() and job.is_completed():
-                print(f"Job {job} is succeeded and completed")
                 LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
                 # Only change if we aren't complete
                 if state_machine.current_state.id != "complete":
-                    previous_state = state_machine.current_state.id
                     state_machine.change()
-                    print(
-                        f"Changed state from {previous_state} to {state_machine.current_state.id}"
-                    )
 
             # The job just completed and failed, clean up.
             if job.is_failed():
-                print(f"Job {job} is failed")
                 LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.
