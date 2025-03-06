@@ -1,15 +1,19 @@
 # The manager is intended to be run in a container (as a service) to orchestrate
 # a workflow.
 
+import json
 import logging
 import math
 import random
 import sys
 import tempfile
+import time
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.tracker as tracker
 from state_machine_operator.machine import new_state_machine
+
+from .utils import timed
 
 # Print debug for now
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +47,10 @@ class WorkflowManager:
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
         LOGGER.info(f"  Scheduler: [{self.scheduler}]")
 
+        # Keep a record of times and timestamps
+        self.times = {}
+        self.timestamps = {}
+
         if not filesystem:
             self.init_registry(registry, plain_http)
             LOGGER.info(f"   Registry: [{self.registry}]")
@@ -62,6 +70,7 @@ class WorkflowManager:
         # This currently assumes one kind of tracker (flux or kubernetes)
         self.tracker = tracker.load(self.scheduler)
 
+    @timed
     def init_registry(self, registry, plain_http=None):
         """
         Initialize the registry if it isn't defined in the workflow config
@@ -89,7 +98,13 @@ class WorkflowManager:
         """
         return list(self.workflow.jobs.keys())
 
-    @property
+    @timed
+    def list_jobs_by_status(self):
+        """
+        Wrapper to tracker list jobs by status to allow timing
+        """
+        return self.tracker.list_jobs_by_status()
+
     def current_state(self):
         """
         Get the number of active and completed jobs.
@@ -102,7 +117,7 @@ class WorkflowManager:
         that coincide with the same data the states were derived from.
         """
         # Get jobs that are in the first stage to determine sequences active
-        jobs = self.tracker.list_jobs_by_status()
+        jobs = self.list_jobs_by_status()
 
         # Give a warning about unknown jobs
         # In practice, I don't know why this would happen.
@@ -161,7 +176,7 @@ class WorkflowManager:
         #    Failed we won't continue (and shouldn't make a state machine
         #    Unknown (this shouldn't happen, let's show these)
         #    Running: we assume previous steps successful
-        current_state = self.current_state
+        current_state = self.current_state()
         completed_jobs = current_state["completed"]
         jobs = current_state["jobs"]
         active_jobs = jobs["running"] + jobs["queued"]
@@ -180,6 +195,9 @@ class WorkflowManager:
         # But this might not always be desired
 
     def get_state_machine(self, job):
+        """
+        Generate a new state machine. This shouldn't take long.
+        """
         if job.jobid in self.trackers:
             state_machine = self.trackers[job.jobid]
         else:
@@ -193,13 +211,16 @@ class WorkflowManager:
         Here we just exit, and don't stop jobs from running, but eventually
         we can cleanup, etc.
         """
-        current_state = self.current_state
+        current_state = self.current_state()
         completions = len(current_state["completed"])
         jobs_needed = self.workflow.completions_needed - completions
         if jobs_needed <= 0:
             LOGGER.info(
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
+            self.add_timed_event("workflow_complete")
+            print("=== times\n" + json.dumps(self.times) + "\n===")
+            print("=== timestamps\n" + json.dumps(self.timestamps) + "\n===")
             sys.exit(0)
 
     def new_jobs(self):
@@ -212,7 +233,7 @@ class WorkflowManager:
         if that is not the case. TLDR: this algorithm that can be improved upon.
         """
         # Start by getting the current state of the cluster
-        current_state = self.current_state
+        current_state = self.current_state()
         completions = len(current_state["completed"])
         active_jobs = len(current_state["active"])
 
@@ -261,6 +282,7 @@ class WorkflowManager:
             state_machine.change()
             self.trackers[jobid] = state_machine
 
+    @timed
     def start(self):
         """
         Start the workflow manager state machine.
@@ -274,7 +296,11 @@ class WorkflowManager:
         2. Submit new jobs up to a max allowed scaling size.
            This coincides with new state machines, one per submit.
         3. Monitor for changes by watching events.
+
+        This timed function should capture the entire workflow execution.
         """
+        self.add_timed_event("workflow_start")
+
         # Each tracker is a state machine for one job sequence
         # Here we assess the current state of the cluster (jobs)
         # and fill the self.trackers lookup with state machines
@@ -292,6 +318,25 @@ class WorkflowManager:
         # Now we watch for changes.
         self.watch()
 
+    def add_timed_event(self, name, timestamp=None):
+        """
+        Add a timestamp to times. This assumes unique names.
+        """
+        if name in self.timestamps:
+            raise ValueError(f"Already seen {name}, this should not happen.")
+        self.timestamps[name] = timestamp or time.time()
+
+    def add_timestamp_first_seen(self, label):
+        """
+        Record first event for a job. If we've seen it, ignore.
+        """
+        label = f"{label}_first_event_seen"
+        if label in self.timestamps:
+            return
+
+        # This will only have one entry
+        self.timestamps[label] = time.time()
+
     def watch(self):
         """
         Watch is an event driven means to watch for changes and update job states
@@ -304,6 +349,9 @@ class WorkflowManager:
             if not job.jobid or not job.step_name or job.jobid not in self.trackers:
                 continue
 
+            # Record first seen (if not seen yet) for jobid and step
+            self.add_timestamp_first_seen(job.label)
+
             # Get the state machine for the job
             state_machine = self.trackers[job.jobid]
 
@@ -314,6 +362,7 @@ class WorkflowManager:
 
             # The job just completed and ran successfully, trigger the next step
             if job.is_succeeded() and job.is_completed():
+                self.add_timed_event(f"{job.label}_succeeded")
                 LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
                 # Only change if we aren't complete
@@ -322,6 +371,7 @@ class WorkflowManager:
 
             # The job just completed and failed, clean up.
             if job.is_failed():
+                self.add_timed_event(f"{job.label}_failed")
                 LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.

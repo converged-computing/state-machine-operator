@@ -34,6 +34,10 @@ class Event:
         self.fluxid = jobid
 
     @property
+    def label(self):
+        return f"{self.jobid}_{self.step_name}"
+
+    @property
     def state(self):
         """
         State must always be retrieved dynamically
