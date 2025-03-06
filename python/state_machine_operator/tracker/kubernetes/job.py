@@ -16,6 +16,10 @@ class Job:
         return self.job.metadata.labels.get(defaults.operator_label)
 
     @property
+    def label(self):
+        return f"{self.jobid}_{self.step_name}"
+
+    @property
     def step_name(self):
         return self.job.metadata.labels.get("app")
 
