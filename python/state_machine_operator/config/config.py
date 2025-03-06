@@ -77,6 +77,13 @@ class WorkflowConfig:
         return self.cfg.get("registry", {}).get("host") or defaults.registry
 
     @property
+    def workdir(self):
+        """
+        Return the working directory, if defined.
+        """
+        return self.cfg.get("workdir")
+
+    @property
     def registry_plain_http(self):
         """
         Determine if the registry supports plain http.

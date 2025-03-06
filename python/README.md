@@ -1,4 +1,4 @@
-# mummi operator
+# state machine operator
 
 > state machine orchestrator for the Mummi workflow
 

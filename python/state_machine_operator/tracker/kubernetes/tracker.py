@@ -296,6 +296,13 @@ class KubernetesTracker(BaseTracker):
     def __init__(self, job_name, workflow):
         super().__init__(job_name, workflow)
         self.adapter = KubernetesJob(self.job_desc, workflow)
+        self.validate()
+
+    def validate(self):
+        if "image" not in self.job_desc or not self.job_desc["image"]:
+            raise ValueError(
+                f"The 'image' attribute is required, and not present in {self.adapter.job_name}"
+            )
 
     def create_step(self, jobid):
         """

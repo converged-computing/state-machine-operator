@@ -57,7 +57,7 @@ class WorkflowManager:
         else:
             # We want a filesystem but need to create a temporary location
             if not self.workflow.filesystem:
-                filesystem = workdir or tempfile.mkdtemp()
+                filesystem = workdir or self.workflow.workdir or tempfile.mkdtemp()
                 self.workflow.set_filesystem(filesystem)
             LOGGER.info(f"   Filesystem: [{filesystem}]")
 

@@ -105,6 +105,7 @@ def main():
         scheduler=args.scheduler,
         registry=args.registry,
         filesystem=args.filesystem,
+        # Will overwrite what is set in config
         workdir=args.workdir,
         plain_http=args.plain_http,
     )
