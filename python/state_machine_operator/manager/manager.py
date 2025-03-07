@@ -160,7 +160,7 @@ class WorkflowManager:
         # Finally, successful jobs that are not the last step
         # and haven't had their next state kicked off...
         for job in jobs["success"]:
-            if job.step_name != last_step:
+            if job.step_name != last_step and job.jobid not in completions:
                 active_jobs.add(job.jobid)
 
         return {
