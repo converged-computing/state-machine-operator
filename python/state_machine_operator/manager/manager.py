@@ -70,7 +70,6 @@ class WorkflowManager:
         # This currently assumes one kind of tracker (flux or kubernetes)
         self.tracker = tracker.load(self.scheduler)
 
-    @timed
     def init_registry(self, registry, plain_http=None):
         """
         Initialize the registry if it isn't defined in the workflow config
@@ -139,14 +138,18 @@ class WorkflowManager:
         # First assess completions - the last step that is completed
         # Any other success job (not in completion state) is considered active
         for job in jobs["success"]:
-            if (
-                not job.jobid
-                or not job.step_name
-                or job.step_name != last_step
-                or job.jobid in failed_jobs
-            ):
+
+            # Unknown to this tracker or has failed component
+            if not job.jobid or not job.step_name or job.jobid in failed_jobs:
                 continue
-            completions.add(job.jobid)
+
+            # Completed
+            if job.step_name == last_step:
+                completions.add(job.jobid)
+                continue
+
+            # Active if has succeeded steps but not completed
+            active_jobs.add(job.jobid)
 
         # so we loop through fewer jobs here
         for job in jobs["running"] + jobs["queued"] + jobs["success"]:
@@ -188,6 +191,19 @@ class WorkflowManager:
             state_machine = self.get_state_machine(job)
             # The job is active, kick off the next steps
             state_machine.mark_running(job.step_name)
+            self.trackers[job.jobid] = state_machine
+
+        # A succeeded job not in the last step needs to be monitored
+        last_step = self.workflow.last_step
+        for job in jobs["success"]:
+            # Don't monitor if it's completed
+            if job.step_name == last_step:
+                continue
+            state_machine = self.get_state_machine(job)
+            # This will mark all steps up to this one as succeeded
+            state_machine.mark_running(job.step_name)
+            # Transition to the next step
+            state_machine.change()
             self.trackers[job.jobid] = state_machine
 
         LOGGER.info(f"Manager running with {len(completed_jobs)} job sequence completions.")
@@ -328,9 +344,10 @@ class WorkflowManager:
 
     def add_timestamp_first_seen(self, label):
         """
-        Record first event for a job. If we've seen it, ignore.
+        Record first event for a job. This is considered the start.
+        If we've seen it, ignore.
         """
-        label = f"{label}_first_event_seen"
+        label = f"{label}_start"
         if label in self.timestamps:
             return
 
