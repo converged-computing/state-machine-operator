@@ -136,30 +136,28 @@ class WorkflowManager:
                 failed_jobs.add(job.jobid)
 
         # First assess completions - the last step that is completed
-        # Any other success job (not in completion state) is considered active
         for job in jobs["success"]:
 
-            # Unknown to this tracker or has failed component
+            # Unknown to this tracker or is completed/failed (a global state)
             if not job.jobid or not job.step_name or job.jobid in failed_jobs:
                 continue
 
             # Completed
             if job.step_name == last_step:
                 completions.add(job.jobid)
-                continue
 
-            # Active if has succeeded steps but not completed
-            active_jobs.add(job.jobid)
-
-        # so we loop through fewer jobs here
-        for job in jobs["running"] + jobs["queued"] + jobs["success"]:
+        # Queued jobs and running jobs indicate the active jobs
+        for job in jobs["queued"] + jobs["running"]:
             if not job.jobid or job.jobid in completions or job.jobid in failed_jobs:
                 continue
-
-            # Assume the job being active means we shouldnt
-            # kick off another. We will need to eventually delete this chain
-            # of jobs when the entire thing is done.
             active_jobs.add(job.jobid)
+
+        # Finally, successful jobs that are not the last step
+        # and haven't had their next state kicked off...
+        for job in jobs["success"]:
+            if job.step_name != last_step:
+                active_jobs.add(job.jobid)
+
         return {
             "completed": completions,
             "active": active_jobs,
@@ -196,15 +194,18 @@ class WorkflowManager:
         # A succeeded job not in the last step needs to be monitored
         last_step = self.workflow.last_step
         for job in jobs["success"]:
-            # Don't monitor if it's completed
-            if job.step_name == last_step:
+            # Don't monitor if it's completed or we are already tracking
+            if job.step_name == last_step or job.jobid in self.trackers:
                 continue
             state_machine = self.get_state_machine(job)
             # This will mark all steps up to this one as succeeded
             state_machine.mark_running(job.step_name)
-            # Transition to the next step
-            state_machine.change()
-            self.trackers[job.jobid] = state_machine
+            # Transition to the next step. This will error if we already have
+            try:
+                state_machine.change()
+                self.trackers[job.jobid] = state_machine
+            except Exception:
+                LOGGER.info(f"Step {job.step_name} for job {job.jobid} already transitioned")
 
         LOGGER.info(f"Manager running with {len(completed_jobs)} job sequence completions.")
         # TODO we likely want some logic to cleanup failed
