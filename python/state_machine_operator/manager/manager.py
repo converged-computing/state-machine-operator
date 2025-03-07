@@ -4,6 +4,7 @@
 import json
 import logging
 import math
+import os
 import random
 import sys
 import tempfile
@@ -11,6 +12,7 @@ import time
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.tracker as tracker
+import state_machine_operator.utils as utils
 from state_machine_operator.machine import new_state_machine
 
 from .utils import timed
@@ -43,6 +45,9 @@ class WorkflowManager:
         self.prefix = self.workflow.prefix or defaults.prefix
         filesystem = filesystem or self.workflow.filesystem is not None
 
+        # Working directory = first preference to command line
+        self.workflow.set_workdir(workdir)
+
         # Running modes (we only allow kubernetes for now)
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
         LOGGER.info(f"  Scheduler: [{self.scheduler}]")
@@ -57,7 +62,7 @@ class WorkflowManager:
         else:
             # We want a filesystem but need to create a temporary location
             if not self.workflow.filesystem:
-                filesystem = workdir or self.workflow.workdir or tempfile.mkdtemp()
+                filesystem = self.workflow.workdir or tempfile.mkdtemp()
                 self.workflow.set_filesystem(filesystem)
             LOGGER.info(f"   Filesystem: [{filesystem}]")
 
@@ -235,10 +240,18 @@ class WorkflowManager:
             LOGGER.info(
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
-            self.add_timed_event("workflow_complete")
-            print("=== times\n" + json.dumps(self.times) + "\n===")
-            print("=== timestamps\n" + json.dumps(self.timestamps) + "\n===")
+            self.add_timestamp("workflow_complete")
+            self.save_times()
             sys.exit(0)
+
+    def save_times(self):
+        """
+        Print final times and timestamps to the console, and
+        also save to file in the working directory.
+        """
+        times = {"times": self.times, "timestamps": self.timestamps}
+        print("=== times\n" + json.dumps(times) + "\n===")
+        utils.write_json(self.times, os.path.join(self.workflow.workdir, "workflow-times.json"))
 
     def new_jobs(self):
         """
@@ -316,7 +329,7 @@ class WorkflowManager:
 
         This timed function should capture the entire workflow execution.
         """
-        self.add_timed_event("workflow_start")
+        self.add_timestamp("workflow_start")
 
         # Each tracker is a state machine for one job sequence
         # Here we assess the current state of the cluster (jobs)
@@ -335,7 +348,7 @@ class WorkflowManager:
         # Now we watch for changes.
         self.watch()
 
-    def add_timed_event(self, name, timestamp=None):
+    def add_timestamp(self, name, timestamp=None):
         """
         Add a timestamp to times. This assumes unique names.
         """
@@ -380,7 +393,7 @@ class WorkflowManager:
 
             # The job just completed and ran successfully, trigger the next step
             if job.is_succeeded() and job.is_completed():
-                self.add_timed_event(f"{job.label}_succeeded")
+                self.add_timestamp(f"{job.label}_succeeded")
                 LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
                 # Only change if we aren't complete
@@ -389,7 +402,7 @@ class WorkflowManager:
 
             # The job just completed and failed, clean up.
             if job.is_failed():
-                self.add_timed_event(f"{job.label}_failed")
+                self.add_timestamp(f"{job.label}_failed")
                 LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.

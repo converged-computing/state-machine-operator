@@ -13,6 +13,14 @@ def read_json(filename):
     return json.loads(read_file(filename))
 
 
+def write_json(obj, filename):
+    """
+    Write json to file
+    """
+    with open(filename, "w") as fd:
+        fd.write(json.dumps(obj, indent=4))
+
+
 def read_file(filename):
     """
     Read in a file content

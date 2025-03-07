@@ -113,6 +113,16 @@ class WorkflowConfig:
             self.cfg["filesystem"] = {}
         self.cfg["filesystem"]["path"] = path
 
+    def set_workdir(self, workdir=None):
+        """
+        Set a new working directory to over-ride the config.
+
+        This is typically done from the command line.
+        """
+        if not workdir:
+            return
+        self.cfg["workdir"] = workdir
+
     @property
     def filesystem(self):
         return self.cfg.get("filesystem", {}).get("path")
