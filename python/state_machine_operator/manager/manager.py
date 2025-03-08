@@ -4,6 +4,7 @@
 import json
 import logging
 import math
+import os
 import random
 import sys
 import tempfile
@@ -11,6 +12,7 @@ import time
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.tracker as tracker
+import state_machine_operator.utils as utils
 from state_machine_operator.machine import new_state_machine
 
 from .utils import timed
@@ -43,6 +45,9 @@ class WorkflowManager:
         self.prefix = self.workflow.prefix or defaults.prefix
         filesystem = filesystem or self.workflow.filesystem is not None
 
+        # Working directory = first preference to command line
+        self.workflow.set_workdir(workdir)
+
         # Running modes (we only allow kubernetes for now)
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
         LOGGER.info(f"  Scheduler: [{self.scheduler}]")
@@ -57,7 +62,7 @@ class WorkflowManager:
         else:
             # We want a filesystem but need to create a temporary location
             if not self.workflow.filesystem:
-                filesystem = workdir or tempfile.mkdtemp()
+                filesystem = self.workflow.workdir or tempfile.mkdtemp()
                 self.workflow.set_filesystem(filesystem)
             LOGGER.info(f"   Filesystem: [{filesystem}]")
 
@@ -70,7 +75,6 @@ class WorkflowManager:
         # This currently assumes one kind of tracker (flux or kubernetes)
         self.tracker = tracker.load(self.scheduler)
 
-    @timed
     def init_registry(self, registry, plain_http=None):
         """
         Initialize the registry if it isn't defined in the workflow config
@@ -137,26 +141,28 @@ class WorkflowManager:
                 failed_jobs.add(job.jobid)
 
         # First assess completions - the last step that is completed
-        # Any other success job (not in completion state) is considered active
         for job in jobs["success"]:
-            if (
-                not job.jobid
-                or not job.step_name
-                or job.step_name != last_step
-                or job.jobid in failed_jobs
-            ):
-                continue
-            completions.add(job.jobid)
 
-        # so we loop through fewer jobs here
-        for job in jobs["running"] + jobs["queued"] + jobs["success"]:
+            # Unknown to this tracker or is completed/failed (a global state)
+            if not job.jobid or not job.step_name or job.jobid in failed_jobs:
+                continue
+
+            # Completed
+            if job.step_name == last_step:
+                completions.add(job.jobid)
+
+        # Queued jobs and running jobs indicate the active jobs
+        for job in jobs["queued"] + jobs["running"]:
             if not job.jobid or job.jobid in completions or job.jobid in failed_jobs:
                 continue
-
-            # Assume the job being active means we shouldnt
-            # kick off another. We will need to eventually delete this chain
-            # of jobs when the entire thing is done.
             active_jobs.add(job.jobid)
+
+        # Finally, successful jobs that are not the last step
+        # and haven't had their next state kicked off...
+        for job in jobs["success"]:
+            if job.step_name != last_step and job.jobid not in completions:
+                active_jobs.add(job.jobid)
+
         return {
             "completed": completions,
             "active": active_jobs,
@@ -190,6 +196,22 @@ class WorkflowManager:
             state_machine.mark_running(job.step_name)
             self.trackers[job.jobid] = state_machine
 
+        # A succeeded job not in the last step needs to be monitored
+        last_step = self.workflow.last_step
+        for job in jobs["success"]:
+            # Don't monitor if it's completed or we are already tracking
+            if job.step_name == last_step or job.jobid in self.trackers:
+                continue
+            state_machine = self.get_state_machine(job)
+            # This will mark all steps up to this one as succeeded
+            state_machine.mark_running(job.step_name)
+            # Transition to the next step. This will error if we already have
+            try:
+                state_machine.change()
+                self.trackers[job.jobid] = state_machine
+            except Exception:
+                LOGGER.info(f"Step {job.step_name} for job {job.jobid} already transitioned")
+
         LOGGER.info(f"Manager running with {len(completed_jobs)} job sequence completions.")
         # TODO we likely want some logic to cleanup failed
         # But this might not always be desired
@@ -218,10 +240,18 @@ class WorkflowManager:
             LOGGER.info(
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
-            self.add_timed_event("workflow_complete")
-            print("=== times\n" + json.dumps(self.times) + "\n===")
-            print("=== timestamps\n" + json.dumps(self.timestamps) + "\n===")
+            self.add_timestamp("workflow_complete")
+            self.save_times()
             sys.exit(0)
+
+    def save_times(self):
+        """
+        Print final times and timestamps to the console, and
+        also save to file in the working directory.
+        """
+        times = {"times": self.times, "timestamps": self.timestamps}
+        print("=== times\n" + json.dumps(times) + "\n===")
+        utils.write_json(self.times, os.path.join(self.workflow.workdir, "workflow-times.json"))
 
     def new_jobs(self):
         """
@@ -299,7 +329,7 @@ class WorkflowManager:
 
         This timed function should capture the entire workflow execution.
         """
-        self.add_timed_event("workflow_start")
+        self.add_timestamp("workflow_start")
 
         # Each tracker is a state machine for one job sequence
         # Here we assess the current state of the cluster (jobs)
@@ -318,7 +348,7 @@ class WorkflowManager:
         # Now we watch for changes.
         self.watch()
 
-    def add_timed_event(self, name, timestamp=None):
+    def add_timestamp(self, name, timestamp=None):
         """
         Add a timestamp to times. This assumes unique names.
         """
@@ -328,9 +358,10 @@ class WorkflowManager:
 
     def add_timestamp_first_seen(self, label):
         """
-        Record first event for a job. If we've seen it, ignore.
+        Record first event for a job. This is considered the start.
+        If we've seen it, ignore.
         """
-        label = f"{label}_first_event_seen"
+        label = f"{label}_start"
         if label in self.timestamps:
             return
 
@@ -362,7 +393,7 @@ class WorkflowManager:
 
             # The job just completed and ran successfully, trigger the next step
             if job.is_succeeded() and job.is_completed():
-                self.add_timed_event(f"{job.label}_succeeded")
+                self.add_timestamp(f"{job.label}_succeeded")
                 LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
                 # Only change if we aren't complete
@@ -371,7 +402,7 @@ class WorkflowManager:
 
             # The job just completed and failed, clean up.
             if job.is_failed():
-                self.add_timed_event(f"{job.label}_failed")
+                self.add_timestamp(f"{job.label}_failed")
                 LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.

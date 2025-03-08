@@ -77,6 +77,13 @@ class WorkflowConfig:
         return self.cfg.get("registry", {}).get("host") or defaults.registry
 
     @property
+    def workdir(self):
+        """
+        Return the working directory, if defined.
+        """
+        return self.cfg.get("workdir")
+
+    @property
     def registry_plain_http(self):
         """
         Determine if the registry supports plain http.
@@ -105,6 +112,16 @@ class WorkflowConfig:
         if "filesystem" not in self.cfg:
             self.cfg["filesystem"] = {}
         self.cfg["filesystem"]["path"] = path
+
+    def set_workdir(self, workdir=None):
+        """
+        Set a new working directory to over-ride the config.
+
+        This is typically done from the command line.
+        """
+        if not workdir:
+            return
+        self.cfg["workdir"] = workdir
 
     @property
     def filesystem(self):

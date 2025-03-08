@@ -74,7 +74,7 @@ state_machine_job_schema = {
     "title": "state-machine-job-01",
     "description": "State Machine Job Config",
     "type": "object",
-    "required": ["name", "config", "script", "image"],
+    "required": ["name", "config", "script"],
     "properties": {
         "name": {"type": "string"},
         "config": {"$ref": "#/definitions/config"},
