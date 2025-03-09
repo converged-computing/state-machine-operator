@@ -90,12 +90,12 @@ class KubernetesJob(Job):
             except Exception as e:
                 LOGGER.warning(f"Issue deleting configmap {name}: {e}")
 
-    def generate_batch_job(self, step, configmap_name, jobid):
+    def generate_batch_job(self, step, jobid):
         """
         Generate the job CRD assuming the config map entrypoint.
         """
         step_name = self.job_desc["name"]
-        job_name = (f"{step_name}-{configmap_name}").replace("_", "-")
+        job_name = f"{step_name}_{jobid}"
         walltime = convert_walltime_to_seconds(step.walltime or 0)
         metadata = client.V1ObjectMeta(name=job_name)
 
@@ -131,7 +131,7 @@ class KubernetesJob(Job):
         # Job container to run the script
         container = client.V1Container(
             image=self.job_desc["image"],
-            name=configmap_name,
+            name="step",
             command=[command[0]],
             args=command[1:],
             image_pull_policy=pull_policy,
@@ -150,7 +150,7 @@ class KubernetesJob(Job):
             client.V1Volume(
                 name="entrypoint-mount",
                 config_map=client.V1ConfigMapVolumeSource(
-                    name=configmap_name,
+                    name=jobid,
                     items=[
                         client.V1KeyToPath(
                             key="entrypoint",
@@ -187,8 +187,7 @@ class KubernetesJob(Job):
 
         # Only add walltime if it's > 0 and not None
         if walltime:
-            LOGGER.info(f"Adding walltime {walltime}")
-            template["spec"]["activeDeadlineSeconds"] = walltime
+            template["spec"]["activeDeadlineSeconds"] = int(walltime)
 
         # Do we want the job to terminate after failure?
         backoff_limit = 0
@@ -229,11 +228,10 @@ class KubernetesJob(Job):
         :param step: The JobSetup data.
         """
         # Create a config map (mounted read only script to run sim)
-        configmap_name = step.name.lower().replace("_", "-")
-        self.create_configmap(configmap_name, step.script)
+        self.create_configmap(jobid, step.script)
 
         # Generate the kubernetes batch job!
-        job = self.generate_batch_job(step, configmap_name, jobid)
+        job = self.generate_batch_job(step, jobid)
         batch_api = client.BatchV1Api()
 
         retcode = -1
@@ -248,7 +246,7 @@ class KubernetesJob(Job):
                 LOGGER.warning(f"Batch job for {step.name} exists, assuming resumed: {e.reason}")
                 submit_status = SubmissionCode.CONFLICT
             else:
-                LOGGER.info(f"There was a create job error: {e.reason}")
+                LOGGER.info(f"There was a create job error: {e.reason}, {e}")
                 submit_status = SubmissionCode.ERROR
 
         return JobSubmission(submit_status, retcode)
