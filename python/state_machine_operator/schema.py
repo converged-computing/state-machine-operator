@@ -98,8 +98,11 @@ state_machine_job_schema = {
             "additionalProperties": False,
         },
         "properties": {
-            "type": "object",
-            "properties": {"type": "object", "additionalProperties": True},
+            "type": ["object", "null"],
+            "properties": {
+              "type": "object",
+              "additionalProperties": True
+            },
         },
         "config": {
             "type": "object",
