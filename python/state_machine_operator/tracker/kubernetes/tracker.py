@@ -96,7 +96,7 @@ class KubernetesJob(Job):
         """
         step_name = self.job_desc["name"]
         # Underscores are not allowed
-        job_name = (f"{step_name}-{step.name}").replace('_', '-')
+        job_name = (f"{step_name}-{step.name}").replace("_", "-")
         walltime = convert_walltime_to_seconds(step.walltime or 0)
         metadata = client.V1ObjectMeta(name=job_name)
 
