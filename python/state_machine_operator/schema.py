@@ -80,8 +80,8 @@ state_machine_job_schema = {
         "config": {"$ref": "#/definitions/config"},
         "script": {"type": "string"},
         "image": {"type": "string"},
-        "properties": {"$ref": "#/definitions/properties"},
         "registry": {"$ref": "#/definitions/registry"},
+        "properties": {"type": ["object", "null"]},
         "workdir": {"type": "string", "default": "/tmp/out"},
         "additionalProperties": False,
     },
@@ -96,12 +96,6 @@ state_machine_job_schema = {
                 "pull": {"type": "string"},
             },
             "additionalProperties": False,
-        },
-        "properties": {
-            "type": ["object", "null"],
-            "properties": {
-              "type": "object",
-            },
         },
         "config": {
             "type": "object",

@@ -94,7 +94,13 @@ class KubernetesJob(Job):
         """
         Node selector is in properties -> node-selector
         """
-        return self.job_desc.get("properties", {}).get("node-selector")
+        # Properties can be provided as a string to json load
+        props = self.job_desc.get("properties", {})
+        if isinstance(props, str):
+            props = json.loads(props)
+        if not props:
+            return props
+        return props.get("node-selector")
 
     def generate_batch_job(self, step, jobid):
         """

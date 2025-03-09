@@ -41,6 +41,7 @@ endif
 OPERATOR_SDK_VERSION ?= v1.38.0
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/converged-computing/state-machine-operator:latest
+ARMIMG ?= ghcr.io/converged-computing/state-machine-operator:arm
 DEVIMG ?= ghcr.io/converged-computing/state-machine-operator:test
 MANAGER_IMG ?= ghcr.io/converged-computing/state-machine-operator:manager
 
@@ -275,6 +276,16 @@ $(ENVTEST): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
+
+.PHONY: arm-build
+arm-build: test ## Build docker image with the manager.
+	docker buildx build --platform linux/arm64 -t ${ARMIMG} .
+
+.PHONY: arm-deploy
+arm-deploy: manifests kustomize
+	docker buildx build --platform linux/arm64 --push -t ${ARMIMG} .
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${ARMIMG}
+	$(KUSTOMIZE) build config/default > examples/dist/state-machine-operator-arm.yaml
 
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary

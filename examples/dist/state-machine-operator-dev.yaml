@@ -125,6 +125,11 @@ spec:
                     name:
                       description: Name is the name of the job (required)
                       type: string
+                    properties:
+                      additionalProperties:
+                        type: string
+                      description: Properties for the tracker, etc.
+                      type: object
                     registry:
                       description: Configuration for the job registry
                       properties:
