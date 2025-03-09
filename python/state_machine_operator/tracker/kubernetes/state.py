@@ -65,7 +65,7 @@ def list_jobs_by_status(label_name="app", label_value=None):
 
         # Failure means we finished with failed condition
         if job.status.failed == 1:
-            states["failed"].append(job)
+            states["failed"].append(Job(job))
             continue
 
         # Not active, and not finished is queued
