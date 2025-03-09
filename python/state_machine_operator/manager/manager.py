@@ -251,7 +251,9 @@ class WorkflowManager:
         """
         times = {"times": self.times, "timestamps": self.timestamps}
         print("=== times\n" + json.dumps(times) + "\n===")
-        utils.write_json(self.times, os.path.join(self.workflow.workdir, "workflow-times.json"))
+        utils.write_json(
+            self.times, os.path.join(self.workflow.workdir or os.getcwd(), "workflow-times.json")
+        )
 
     def new_jobs(self):
         """

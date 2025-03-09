@@ -9,6 +9,36 @@ on:
     - main
 
 jobs:
+  build-manager:
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+    env:
+      container: ghcr.io/converged-computing/state-machine-operator
+    name: build state machine operator manager
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Container
+      run: make manager
+    - name: Tag Release Image
+      if: (github.event_name == 'release')
+      run: |
+        tag=${GITHUB_REF#refs/tags/}
+        echo "Tagging and releasing ${{ env.container}}:manager-${tag}"
+        docker tag ${{ env.container }}:latest ${{ env.container }}:manager-${tag}
+
+    - name: GHCR Login
+      if: (github.event_name != 'pull_request')
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Deploy Container
+      if: (github.event_name != 'pull_request')
+      run: docker push ${{ env.container }} --all-tags
+
   build-state-machine-operator:
     permissions:
       packages: write
