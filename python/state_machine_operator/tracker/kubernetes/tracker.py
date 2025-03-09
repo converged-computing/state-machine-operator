@@ -95,7 +95,7 @@ class KubernetesJob(Job):
         Generate the job CRD assuming the config map entrypoint.
         """
         step_name = self.job_desc["name"]
-        job_name = f"{step_name}_{jobid}"
+        job_name = f"{step_name}-{step.name}"
         walltime = convert_walltime_to_seconds(step.walltime or 0)
         metadata = client.V1ObjectMeta(name=job_name)
 
@@ -150,7 +150,7 @@ class KubernetesJob(Job):
             client.V1Volume(
                 name="entrypoint-mount",
                 config_map=client.V1ConfigMapVolumeSource(
-                    name=jobid,
+                    name=step.name,
                     items=[
                         client.V1KeyToPath(
                             key="entrypoint",
@@ -228,7 +228,7 @@ class KubernetesJob(Job):
         :param step: The JobSetup data.
         """
         # Create a config map (mounted read only script to run sim)
-        self.create_configmap(jobid, step.script)
+        self.create_configmap(step.name, step.script)
 
         # Generate the kubernetes batch job!
         job = self.generate_batch_job(step, jobid)
@@ -308,7 +308,7 @@ class KubernetesTracker(BaseTracker):
         """
         LOGGER.debug(f"[{self.type}] jobid = {jobid}")
         step = JobSetup(
-            name=jobid,
+            name=jobid.lower().replace("_", "-"),
             nodes=self.nnodes,
             procs=self.nprocs,
             cores_per_task=self.ncores,
