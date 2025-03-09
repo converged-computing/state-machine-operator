@@ -90,6 +90,12 @@ class KubernetesJob(Job):
             except Exception as e:
                 LOGGER.warning(f"Issue deleting configmap {name}: {e}")
 
+    def get_node_selector(self):
+        """
+        Node selector is in properties -> node-selector
+        """
+        return self.job_desc.get("properties", {}).get("node-selector")
+
     def generate_batch_job(self, step, jobid):
         """
         Generate the job CRD assuming the config map entrypoint.
@@ -185,6 +191,12 @@ class KubernetesJob(Job):
                 "subdomain": subdomain,
             },
         }
+
+        # Add node selectors? E.g.,
+        # node.kubernetes.io/instance-type: c7a.4xlarge
+        node_selector = self.get_node_selector()
+        if node_selector is not None:
+            template["spec"]["nodeSelector"] = node_selector
 
         # Only add walltime if it's > 0 and not None
         if walltime:

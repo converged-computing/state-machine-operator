@@ -90,6 +90,8 @@ For each job script section, the following environment variables are provided fo
 - registry: the registry where your artifact will be pushed
   - pull_tag: the pull tag to use (if the workflow is pulling)
   - push_tag: the push tag to use (if the workflow is pushing)
+- properties:
+  - node-selector: key value pair to be added as node selectors for the job (Kubernetes only). E.g., `node.kubernetes.io/instance-type: c7a.4xlarge`
 
 Take a look at the simple example [examples/state-machine.yaml](examples/state-machine.yaml) to see how push/pull is defined between steps. Given that these are found (with a tag) your artifact will be named `<registry>:<jobid>:<tag>` to be moved between steps.
 
