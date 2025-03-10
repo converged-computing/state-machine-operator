@@ -329,7 +329,6 @@ class KubernetesTracker(BaseTracker):
         step = JobSetup(
             name=jobid.lower().replace("_", "-"),
             nodes=self.nnodes,
-            procs=self.nprocs,
             cores_per_task=self.ncores,
             gpus=self.ngpus,
         )

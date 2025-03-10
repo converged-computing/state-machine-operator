@@ -52,11 +52,6 @@ class FluxJob(Job):
             LOGGER.error(msg)
             raise ValueError(msg)
 
-        # If the number of tasks < node count we get an error
-        # assume the user wants one task per node
-        if step.procs < step.nodes:
-            step.procs = step.nodes
-
         # Command and entrypoint script
         entrypoint = f"{step.workdir}/entrypoint.sh"
         command = self.config.get("command") or f"/bin/bash {entrypoint}"
@@ -74,8 +69,9 @@ class FluxJob(Job):
         # QUESTION: is a flux task == what we are using for procs?
         jobspec = flux.job.JobspecV1.from_command(
             command=command,
+            # TODO add tasks here, right now assume == number of nodes
             num_nodes=step.nodes,
-            num_tasks=step.procs,
+            num_tasks=step.nodes,
             gpus_per_task=step.gpus,
         )
 
@@ -147,7 +143,6 @@ class FluxTracker(BaseTracker):
         step = JobSetup(
             name=jobid,
             nodes=self.nnodes,
-            procs=self.nprocs,
             cores_per_task=self.ncores,
             gpus=self.ngpus,
             workdir=workdir,

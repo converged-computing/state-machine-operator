@@ -73,10 +73,6 @@ func populateJobDefaults(job *api.JobStep) {
 	if job.Config.CoresPerTask == 0 {
 		job.Config.CoresPerTask = 6
 	}
-	// Number of processes, nproc
-	if job.Config.Nproc == 0 {
-		job.Config.Nproc = defaultNumberProcs
-	}
 	// No default walltime set
 
 	// Add space in front of each line of the script
