@@ -96,6 +96,10 @@ type JobStep struct {
 	// + optional
 	AppConfig string `json:"appConfig,omitempty"`
 
+	// Properties for the tracker, etc.
+	// +optional
+	Properties map[string]string `json:"properties,omitempty"`
+
 	// Namespace is inherited from StateMachine Spec
 	// This is the continer image (required)
 	Image string `json:"image,omitempty"`

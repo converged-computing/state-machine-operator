@@ -81,6 +81,7 @@ state_machine_job_schema = {
         "script": {"type": "string"},
         "image": {"type": "string"},
         "registry": {"$ref": "#/definitions/registry"},
+        "properties": {"type": ["object", "null"]},
         "workdir": {"type": "string", "default": "/tmp/out"},
         "additionalProperties": False,
     },

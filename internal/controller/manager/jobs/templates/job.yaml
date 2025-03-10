@@ -6,7 +6,9 @@ name: {{ .Job.Name }}
 image: {{ .Job.Image }}
 namespace: {{ if .StateMachine.Namespace }}{{ .StateMachine.Namespace }}{{ else }}default{{ end }}
 workdir:  {{ if .Job.Workdir }}{{ .Job.Workdir }}{{ else }}/tmp/out{{ end }}
-
+{{ if .Job.Properties }}properties: {{range $key, $value := .Job.Properties }}
+ {{ $key }}: {{ $value }}
+{{ end }}{{ end }}
 
 {{ if .Job.HasRegistry }}
 registry:
