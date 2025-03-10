@@ -16,7 +16,6 @@ spec:
       push: job_a
     config:
       nodes: 1
-      nproc: 1
       coresPerTask: 1
     image: rockylinux:9
     script: |
@@ -27,7 +26,6 @@ spec:
   - name: job_b
     config:
       nodes: 1
-      nproc: 1
       coresPerTask: 1
     image: rockylinux:9
     registry:
@@ -40,7 +38,6 @@ spec:
   - name: job_c
     config:
       nodes: 1
-      nproc: 1
       coresPerTask: 1
     image: rockylinux:9
     registry:

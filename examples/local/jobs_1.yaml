@@ -1,7 +1,6 @@
 name: job_b
 config:
   nodes: 1
-  nproc: 1
   coresPerTask: 1
 image: rockylinux:9
 script: |

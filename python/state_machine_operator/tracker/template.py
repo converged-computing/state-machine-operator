@@ -41,7 +41,7 @@ job_config = (
     """
 config:
   nnodes:           {% if config["nodes"] %}{{ config["nodes"] }}{% else %}1{% endif %}
-  cores per task:   {% if config["coresPerTask"] %}{{ config["coresPerTask"] }}{% else %}6{% endif %}
+  cores_per_task:   {% if config["coresPerTask"] %}{{ config["coresPerTask"] }}{% else %}6{% endif %}
   ngpus:            {% if config["gpus"] %}{{ config["gpus"] }}{% else %}0{% endif %}
   {% if config["walltime"] %}walltime:         '{{ config["walltime"] }}'{% endif %}
   retry_failure:    {% if config["retryFailure"] %}true{% else %}false{% endif %}

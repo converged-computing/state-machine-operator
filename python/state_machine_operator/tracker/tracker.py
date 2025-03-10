@@ -79,7 +79,7 @@ class BaseTracker:
 
     @property
     def ncores(self):
-        return int(self.config.get("cores per task", 1))
+        return int(self.config.get("cores_per_task", 1))
 
     @property
     def ngpus(self):

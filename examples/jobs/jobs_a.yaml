@@ -1,8 +1,7 @@
 name: job_a
 config:
   nnodes:         1
-  nprocs:         1
-  cores per task: 6
+  cores_per_task: 6
   ngpus:          0
   subdomain: "state-machine-operator"
 

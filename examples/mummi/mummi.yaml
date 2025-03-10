@@ -18,7 +18,6 @@ spec:
     config:
       nodes: 1
       gpus: 0
-      nproc: 1
       coresPerTask: 6
       command: "/root/.pixi/bin/pixi run --manifest-path /pixi-env/pixi.toml bash /workdir/entrypoint.sh"
     image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:mlrunner
@@ -64,7 +63,6 @@ spec:
   - name: createsim
     config:
       nodes: 1
-      nproc: 1
       coresPerTask: 6
       gpus: 0
       walltime: '0:45:00'
@@ -103,7 +101,6 @@ spec:
   - name: cganalysis
     config:
       nodes: 1
-      nproc: 1
       coresPerTask: 3
       gpus: 0
     image: 633731392008.dkr.ecr.us-east-1.amazonaws.com/mini-mummi:cganalysis
