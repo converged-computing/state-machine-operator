@@ -58,20 +58,24 @@ class KubernetesJob(Job):
                 else:
                     raise ValueError(f"Unexpected error with configmap creation: {e.reason}")
 
-    def cleanup(self, name):
+    def cleanup(self, jobid):
         """
         Try cleaning up the entirety of a job
         """
+        name = jobid.lower().replace("_", "-")
         try:
             self.delete_configmap(name)
         except Exception as e:
-            LOGGER.warning(f"Issue cleaning up {name}: {e}")
+            LOGGER.warning(f"Issue cleaning up configmap {name}: {e}")
 
         # Use kubernetes API to cancel jobs (delete)
         batch_api = client.BatchV1Api()
 
+        # Derive the job name
+        step_name = self.job_desc["name"]
+        job_name = (f"{step_name}-{name}").replace("_", "-")
         try:
-            batch_api.delete_namespaced_job(name=name, namespace=self.namespace)
+            batch_api.delete_namespaced_job(name=job_name, namespace=self.namespace)
         except Exception as e:
             LOGGER.warning(f"Issue deleting {name}: {e}")
 

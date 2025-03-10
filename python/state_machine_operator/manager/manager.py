@@ -109,7 +109,7 @@ class WorkflowManager:
         """
         return self.tracker.list_jobs_by_status()
 
-    def current_state(self):
+    def get_current_state(self):
         """
         Get the number of active and completed jobs.
 
@@ -158,9 +158,14 @@ class WorkflowManager:
             active_jobs.add(job.jobid)
 
         # Finally, successful jobs that are not the last step
-        # and haven't had their next state kicked off...
+        # and haven't had their next state kicked off... we assume a failure
+        # at once step is a failure in the entire job
         for job in jobs["success"]:
-            if job.step_name != last_step and job.jobid not in completions:
+            if (
+                job.step_name != last_step
+                and job.jobid not in completions
+                and job.jobid not in failed_jobs
+            ):
                 active_jobs.add(job.jobid)
 
         return {
@@ -182,7 +187,7 @@ class WorkflowManager:
         #    Failed we won't continue (and shouldn't make a state machine
         #    Unknown (this shouldn't happen, let's show these)
         #    Running: we assume previous steps successful
-        current_state = self.current_state()
+        current_state = self.get_current_state()
         completed_jobs = current_state["completed"]
         jobs = current_state["jobs"]
         active_jobs = jobs["running"] + jobs["queued"]
@@ -233,7 +238,7 @@ class WorkflowManager:
         Here we just exit, and don't stop jobs from running, but eventually
         we can cleanup, etc.
         """
-        current_state = self.current_state()
+        current_state = self.get_current_state()
         completions = len(current_state["completed"])
         jobs_needed = self.workflow.completions_needed - completions
         if jobs_needed <= 0:
@@ -265,7 +270,7 @@ class WorkflowManager:
         if that is not the case. TLDR: this algorithm that can be improved upon.
         """
         # Start by getting the current state of the cluster
-        current_state = self.current_state()
+        current_state = self.get_current_state()
         completions = len(current_state["completed"])
         active_jobs = len(current_state["active"])
 
