@@ -87,11 +87,6 @@ spec:
                           description: Number of nodes per job
                           format: int32
                           type: integer
-                        nproc:
-                          default: 1
-                          description: Number of processes per job
-                          format: int32
-                          type: integer
                         pullPolicy:
                           default: IfNotPresent
                           description: Pull policy for the container

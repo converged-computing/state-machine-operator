@@ -129,12 +129,6 @@ type JobConfig struct {
 	// +optional
 	Nodes int32 `json:"nodes,omitempty"`
 
-	// Number of processes per job
-	// +kubebuilder:default=1
-	// +default=1
-	// +optional
-	Nproc int32 `json:"nproc,omitempty"`
-
 	// Cores per task per job
 	// 6 frontier / 3 summit / 5 on lassen (vsoch: this used to be 6 default)
 	// +kubebuilder:default=3

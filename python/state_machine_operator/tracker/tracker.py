@@ -78,10 +78,6 @@ class BaseTracker:
         return int(self.config.get("nnodes", 1))
 
     @property
-    def nprocs(self):
-        return int(self.config.get("nprocs", 1))
-
-    @property
     def ncores(self):
         return int(self.config.get("cores per task", 1))
 
@@ -94,7 +90,6 @@ class BaseTracker:
         Sanity check resources are reasonable. Har har har.
         """
         assert self.nnodes >= 1
-        assert self.nprocs >= 1
         assert self.ncores >= 1
         assert self.ngpus >= 0
 

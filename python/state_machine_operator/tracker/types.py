@@ -26,7 +26,6 @@ class JobSubmission:
 class JobSetup:
     name: str
     nodes: int
-    procs: int
     cores_per_task: int
     script: str = None
     walltime: str = None
