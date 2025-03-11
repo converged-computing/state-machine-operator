@@ -2,15 +2,13 @@ import os
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
+from state_machine_operator.tracker.job import BaseJob
 
 
-class Job:
+class Job(BaseJob):
     """
     Each returned job needs to expose a common interface
     """
-
-    def __init__(self, job):
-        self.job = job
 
     @property
     def jobid(self):
@@ -44,16 +42,12 @@ class Job:
         """
         Determine if a job is failed
         """
-        if self.always_succeed:
-            return False
         return self.job.status.failed == 1
 
     def is_succeeded(self):
         """
         Determine if a job has succeeded
         """
-        if self.always_succeed:
-            return True
         return self.job.status.succeeded == 1
 
 

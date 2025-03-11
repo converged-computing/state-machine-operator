@@ -1,12 +1,14 @@
 import flux
 import flux.job
 
+from state_machine_operator.tracker.job import BaseJob
+
 from .handle import get_handle
 
 handle = get_handle()
 
 
-class Event:
+class FluxJob(BaseJob):
     """
     An event wraps a job event.
     """

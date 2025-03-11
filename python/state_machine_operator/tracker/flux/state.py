@@ -4,7 +4,7 @@ import flux
 import flux.job
 
 from .handle import get_handle
-from .job import Event as Job
+from .job import FluxJob as Job
 
 LOGGER = getLogger(__name__)
 

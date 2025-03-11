@@ -363,6 +363,17 @@ class WorkflowManager:
             raise ValueError(f"Already seen {name}, this should not happen.")
         self.timestamps[name] = timestamp or time.time()
 
+    def succeed_job(self, job, state_machine):
+        """
+        A state machine can succeed if it exits with 0 or is marked to always succeed
+        """
+        self.add_timestamp(f"{job.label}_succeeded")
+        LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
+        state_machine.mark_succeeded()
+        # Only change if we aren't complete
+        if state_machine.current_state.id != "complete":
+            state_machine.change()
+
     def add_timestamp_first_seen(self, label):
         """
         Record first event for a job. This is considered the start.
@@ -398,14 +409,13 @@ class WorkflowManager:
             if job.is_active() and not job.is_completed():
                 continue
 
+            # This is a case where the job failed, but we allow failure and keep going
+            if job.is_failed() and job.always_succeed:
+                self.succeed_job(job, state_machine)
+
             # The job ran successfully, trigger the next step
-            if job.is_succeeded():
-                self.add_timestamp(f"{job.label}_succeeded")
-                LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
-                state_machine.mark_succeeded()
-                # Only change if we aren't complete
-                if state_machine.current_state.id != "complete":
-                    state_machine.change()
+            if job.is_succeeded() and job.is_completed():
+                self.succeed_job(job, state_machine)
 
             # The job just completed and failed, clean up.
             if job.is_failed():
