@@ -23,6 +23,10 @@ class Job:
     def step_name(self):
         return self.job.metadata.labels.get("app")
 
+    @property
+    def always_succeed(self):
+        return self.job.metadata.labels.get("always-succeed") == "1"
+
     def is_active(self):
         """
         Determine if a job is active
@@ -39,12 +43,16 @@ class Job:
         """
         Determine if a job is failed
         """
+        if self.always_succeed:
+            return False
         return self.job.status.failed == 1
 
     def is_succeeded(self):
         """
         Determine if a job has succeeded
         """
+        if self.always_succeed:
+            return True
         return self.job.status.succeeded == 1
 
 

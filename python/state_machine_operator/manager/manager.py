@@ -380,7 +380,7 @@ class WorkflowManager:
         Watch is an event driven means to watch for changes and update job states
         accordingly.
         """
-        # TODO we should have some kind of timeout that does not rely on an event
+        # TODO we should have some kind of check that does not rely on an event
         for job in self.tracker.stream_events():
 
             # Not a job associated with the workflow, or is ignored

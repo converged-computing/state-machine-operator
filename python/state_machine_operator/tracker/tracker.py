@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -102,6 +103,25 @@ class BaseTracker:
         Get the job description name
         """
         return self.job_desc["name"]
+
+    @property
+    def properties(self):
+        """
+        Properties are attributes that are specific to a tracker.
+        """
+        # Properties can be provided as a string to json load
+        props = self.job_desc.get("properties", {})
+        if isinstance(props, str):
+            props = json.loads(props)
+        return props
+
+    @property
+    def always_succeed(self):
+        """
+        Should the job always be marked as successful?
+        """
+        props = self.properties or {}
+        return props.get("always-succeed") or False
 
     @property
     def registry_host(self):
