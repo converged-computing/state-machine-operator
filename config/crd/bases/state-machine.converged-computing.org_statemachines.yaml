@@ -164,6 +164,10 @@ spec:
                       If unset, will default to Nodes above (N=6)
                     format: int32
                     type: integer
+                  nodeSelector:
+                    description: container image for the workflow manager (must be
+                      provided)
+                    type: string
                   pullPolicy:
                     default: IfNotPresent
                     description: Image pull policy (e.g., Always, Never, etc.)
