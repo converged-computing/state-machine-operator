@@ -121,7 +121,7 @@ class BaseTracker:
         Should the job always be marked as successful?
         """
         props = self.properties or {}
-        return props.get("always-succeed") or False
+        return props.get("always-succeed") in ["1", "true", "True", "yes"] or False
 
     @property
     def registry_host(self):
