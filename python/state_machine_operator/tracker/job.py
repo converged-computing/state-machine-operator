@@ -2,6 +2,7 @@ class BaseJob:
     """
     A BaseJob to wrap a Job for some tracker
     """
+
     def __init__(self, job):
         self.job = job
 

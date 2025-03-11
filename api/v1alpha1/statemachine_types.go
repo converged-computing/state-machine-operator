@@ -205,6 +205,10 @@ type Manager struct {
 	// +omitempty
 	Image string `json:"image,omitempty"`
 
+	// container image for the workflow manager (must be provided)
+	// +omitempty
+	NodeSelector string `json:"nodeSelector,omitempty"`
+
 	// Image pull policy (e.g., Always, Never, etc.)
 	// +kubebuilder:default="IfNotPresent"
 	// +default="IfNotPresent"
