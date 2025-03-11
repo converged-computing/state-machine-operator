@@ -1,6 +1,7 @@
 import os
 
 import state_machine_operator.defaults as defaults
+import state_machine_operator.utils as utils
 
 
 class Job:
@@ -25,7 +26,7 @@ class Job:
 
     @property
     def always_succeed(self):
-        return self.job.metadata.labels.get("always-succeed") == "1"
+        return self.job.metadata.labels.get("always-succeed") in utils.true_values
 
     def is_active(self):
         """

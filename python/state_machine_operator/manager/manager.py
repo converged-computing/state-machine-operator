@@ -398,8 +398,8 @@ class WorkflowManager:
             if job.is_active() and not job.is_completed():
                 continue
 
-            # The job just completed and ran successfully, trigger the next step
-            if job.is_succeeded() and job.is_completed():
+            # The job ran successfully, trigger the next step
+            if job.is_succeeded():
                 self.add_timestamp(f"{job.label}_succeeded")
                 LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
                 state_machine.mark_succeeded()
