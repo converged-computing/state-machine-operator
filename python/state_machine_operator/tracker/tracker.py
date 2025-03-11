@@ -85,6 +85,9 @@ class BaseTracker:
     def ngpus(self):
         return int(self.config.get("ngpus", 0))
 
+    def cleanup(self, jobid=None):
+        pass
+
     def check_resources(self):
         """
         Sanity check resources are reasonable. Har har har.

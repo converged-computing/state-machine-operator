@@ -154,6 +154,17 @@ def on_change(self):
     tracker.submit_job(self.jobid)
 
 
+def cleanup(self):
+    """
+    Cleanup an entire state machine, meaning all jobs.
+    """
+    for step_name, step in self.trackers.items():
+        try:
+            step.cleanup(self.jobid)
+        except Exception as e:
+            print(f"Issue cleaning up tracker {step_name}: {e}")
+
+
 def new_state_machine(config, jobid, tracker_type="kubernetes"):
     """
     New state machine creates a new JobStateMachine.
@@ -183,6 +194,7 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
         "jobid": jobid,
         "init_trackers": init_trackers,
         "workflow": config,
+        "cleanup": cleanup,
         "tracker": tracker.load(tracker_type),
         "next_step_config": next_step_config,
     }
