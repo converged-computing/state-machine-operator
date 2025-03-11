@@ -98,13 +98,7 @@ class KubernetesJob(Job):
         """
         Node selector is in properties -> node-selector
         """
-        # Properties can be provided as a string to json load
-        props = self.job_desc.get("properties", {})
-        if isinstance(props, str):
-            props = json.loads(props)
-        if not props:
-            return props
-        return props.get("node-selector")
+        return self.properties.get("node-selector")
 
     def generate_batch_job(self, step, jobid):
         """
@@ -201,6 +195,10 @@ class KubernetesJob(Job):
                 "subdomain": subdomain,
             },
         }
+
+        # Should the job always succeed?
+        if self.always_succeed:
+            template["metadata"]["labels"]["always-succeed"] = "1"
 
         # Add node selectors? E.g.,
         # node.kubernetes.io/instance-type: c7a.4xlarge

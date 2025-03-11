@@ -188,7 +188,7 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
         "mark_failed": mark_failed,
         # Booleans to check state
         "is_failed": is_failed,
-        "is_succeeded": is_failed,
+        "is_succeeded": is_succeeded,
         "is_running": is_running,
         "is_complete": False,
         "jobid": jobid,

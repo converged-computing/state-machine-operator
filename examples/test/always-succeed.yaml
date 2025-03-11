@@ -1,0 +1,45 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+  workflow:
+    completed: 2
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    properties:
+      always-succeed: "1"
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: |
+      sleep 5
+      exit 1
+
+  - name: job_b
+    properties:
+      always-succeed: "1"
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: |
+      sleep 5
+      exit 1
+
+  - name: job_c
+    config:
+      nodes: 1
+      coresPerTask: 1
+    properties:
+      always-succeed: "1"
+    image: rockylinux:9
+    script: |
+      sleep 5
+      exit 1

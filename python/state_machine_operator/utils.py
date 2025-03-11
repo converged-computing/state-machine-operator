@@ -5,6 +5,8 @@ from contextlib import contextmanager
 
 import yaml
 
+true_values = ["1", "yes", 1, "true", True, "True"]
+
 
 def read_json(filename):
     """
