@@ -207,6 +207,10 @@ spec:
                     default: registry
                     description: Name for the registry (defaults to registry)
                     type: string
+                  nodeSelector:
+                    description: container image for the workflow manager (must be
+                      provided)
+                    type: string
                   plainHttp:
                     description: Assume the registry doesn't use plain http
                     type: boolean
