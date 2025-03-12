@@ -424,6 +424,9 @@ class WorkflowManager:
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.
                 state_machine.mark_failed()
+                # If we get here, the job has already done retries for the step
+                # We need to cancel the state machine (all associated jobs)
+                state_machine.cleanup()
                 # Deleting the state machine means we stop tracking it
                 if job.jobid in self.trackers:
                     del self.trackers[job.jobid]
