@@ -118,6 +118,24 @@ class Watcher:
             "is_ready": ready["status"],
         }
 
+    def parse_node_event(self, event):
+        """
+        Parse a node event. Wrapped to handle any error.
+        """
+        node = event["object"]
+        if node.metadata.name not in self.nodes:
+            self.nodes[node.metadata.name] = self.new_node_event(node)
+
+        # The node was deleted (so the object was too)
+        if node.metadata.deletion_timestamp:
+            self.nodes[node.metadata.name]["deleted"] = node.metadata.deletion_timestamp.timestamp()
+
+        # Has the node readiness changed? Only save conditions on changes
+        ready = self.find_ready_condition(node)
+        if self.nodes[node.metadata.name]["is_ready"] != ready["status"]:
+            self.nodes[node.metadata.name]["conditions"].append(ready)
+            self.nodes[node.metadata.name]["is_ready"] = ready["status"]
+
     def watch_nodes(self):
         """
         Collect list of nodes at experiment start, and then watch for changes.
@@ -132,21 +150,10 @@ class Watcher:
         # https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/types.go
         w = watch.Watch()
         for event in w.stream(api.list_node):
-            node = event["object"]
-            if node.metadata.name not in self.nodes:
-                self.nodes[node.metadata.name] = self.new_node_event(node)
-
-            # The node was deleted (so the object was too)
-            if node.metadata.deletion_timestamp:
-                self.nodes[node.metadata.name][
-                    "deleted"
-                ] = node.metadata.deletion_timestamp.timestamp()
-
-            # Has the node readiness changed? Only save conditions on changes
-            ready = self.find_ready_condition(node)
-            if self.nodes[node.metadata.name]["is_ready"] != ready["status"]:
-                self.nodes[node.metadata.name]["conditions"].append(ready)
-                self.nodes[node.metadata.name]["is_ready"] = ready["status"]
+            try:
+                self.parse_node_event(event)
+            except Exception as e:
+                LOGGER.warning(f"Issue with Kubernetes event: {e}")
 
             # Stop event
             if self.stop_event.is_set():
