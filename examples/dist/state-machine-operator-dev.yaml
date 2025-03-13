@@ -68,6 +68,10 @@ spec:
                     appConfig:
                       description: Custom data config to provide to worker
                       type: string
+                    arch:
+                      default: amd64
+                      description: Architecture (arm64 or amd64)
+                      type: string
                     config:
                       description: Configuration for the job
                       properties:
