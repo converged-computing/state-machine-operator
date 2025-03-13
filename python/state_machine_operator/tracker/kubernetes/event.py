@@ -1,3 +1,4 @@
+import json
 import os
 import threading
 from logging import getLogger
@@ -46,6 +47,7 @@ class Watcher:
         return {"nodes": self.nodes}
 
     def save(self, outdir):
+        print("=== nodes\n" + json.dumps(self.nodes) + "\n===")
         utils.write_json(self.nodes, os.path.join(outdir, "cluster-nodes.json"))
 
     def prepare_watchers(self):
@@ -88,7 +90,8 @@ class Watcher:
         # Get starting state of the cluster - we care about ready nodes, timestamps
         for node in api.list_node().items:
             self.nodes[node.metadata.name] = {
-                "created": node.metadata.creation_timestamp.timestamp()
+                "created": node.metadata.creation_timestamp.timestamp(),
+                "labels": node.metadata.labels,
             }
 
         # For now, assume that nodes are added and removed.
