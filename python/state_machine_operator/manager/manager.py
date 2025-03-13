@@ -71,9 +71,22 @@ class WorkflowManager:
                 f"{self.scheduler} is not valid, please choose from {defaults.supported_schedulers}"
             )
 
-        # Initialize tracker class
+        # Prepare tracker, an event driven workload manager
+        self.setup_tracker()
+
+    def setup_tracker(self):
+        """
+        Initialize tracker class and associated watchers
+        """
         # This currently assumes one kind of tracker (flux or kubernetes)
         self.tracker = tracker.load(self.scheduler)
+
+        # This is an empty (faux) watcher
+        self.watcher = tracker.Watcher()
+
+        # Does our tracker have a custom watchers?
+        if hasattr(self.tracker, "Watcher"):
+            self.watcher = self.tracker.Watcher()
 
     def init_registry(self, registry, plain_http=None):
         """
@@ -246,8 +259,17 @@ class WorkflowManager:
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
             self.add_timestamp("workflow_complete")
+
+            # Stop the watcher and save output
+            self.watcher.stop()
+            self.watcher.save(self.save_dir)
+
             self.save_times()
             sys.exit(0)
+
+    @property
+    def save_dir(self):
+        return self.workflow.workdir or os.getcwd()
 
     def save_times(self):
         """
@@ -256,9 +278,7 @@ class WorkflowManager:
         """
         times = {"times": self.times, "timestamps": self.timestamps}
         print("=== times\n" + json.dumps(times) + "\n===")
-        utils.write_json(
-            times, os.path.join(self.workflow.workdir or os.getcwd(), "workflow-times.json")
-        )
+        utils.write_json(times, os.path.join(self.save_dir, "workflow-times.json"))
 
     def new_jobs(self):
         """
@@ -333,6 +353,8 @@ class WorkflowManager:
         2. Submit new jobs up to a max allowed scaling size.
            This coincides with new state machines, one per submit.
         3. Monitor for changes by watching events.
+        4. Each state machine acts independently
+        5. A tracker can optionally monitor (watch) more events.
 
         This timed function should capture the entire workflow execution.
         """
@@ -351,6 +373,9 @@ class WorkflowManager:
         # each sequence gets one job running at once (one slot in the cluster)
         # and can submit up to the max size. This algorithm can change.
         self.new_jobs()
+
+        # Does our tracker have watchers?
+        self.watcher.start()
 
         # Now we watch for changes.
         self.watch()
@@ -431,8 +456,7 @@ class WorkflowManager:
                 if job.jobid in self.trackers:
                     del self.trackers[job.jobid]
 
-            # TODO: this triggers on events, but we might want to also trigger the check at some frequency
-            # This should work if a completion always runs it, however
+            # Check if the workflow is complete
             self.check_complete()
 
             # Check to see if we should submit new jobs

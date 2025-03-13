@@ -97,7 +97,7 @@ type JobStep struct {
 	// +default="amd64"
 	// +optional
 	Arch string `json:"arch,omitempty"`
-	
+
 	// Custom data config to provide to worker
 	// + optional
 	AppConfig string `json:"appConfig,omitempty"`

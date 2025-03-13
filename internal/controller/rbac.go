@@ -42,6 +42,27 @@ func (r *StateMachineReconciler) createRBAC(
 		return ctrl.Result{}, err
 	}
 
+	// Cluster Role (permissions to watch nodes)
+	clusterRole := &rbacv1.ClusterRole{}
+	err = r.Get(ctx, types.NamespacedName{Name: spec.ClusterRoleName(), Namespace: spec.Namespace}, clusterRole)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = r.createClusterRole(ctx, spec)
+
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Role Bindings for the role
+	clusterBinding := &rbacv1.ClusterRoleBinding{}
+	err = r.Get(ctx, types.NamespacedName{Name: spec.ClusterRoleName(), Namespace: spec.Namespace}, clusterBinding)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = r.createClusterRoleBinding(ctx, spec)
+		}
+		return ctrl.Result{}, err
+	}
+
 	// Role (permissions for the namespace)
 	role := &rbacv1.Role{}
 	err = r.Get(ctx, types.NamespacedName{Name: spec.RoleName(), Namespace: spec.Namespace}, role)
@@ -59,8 +80,8 @@ func (r *StateMachineReconciler) createRBAC(
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = r.createRoleBinding(ctx, spec)
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, err
 }
@@ -101,6 +122,28 @@ func (r *StateMachineReconciler) createRole(
 	return role, err
 }
 
+// createRole creates permissions for the wfmanager scoped to the namespace
+func (r *StateMachineReconciler) createClusterRole(
+	ctx context.Context,
+	spec *api.StateMachine,
+) (*rbacv1.ClusterRole, error) {
+
+	mLog.Info("Creating cluster role for: ", spec.Name, spec.Namespace)
+	role := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: spec.ClusterRoleName(), Namespace: spec.Namespace},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"nodes"},
+				Verbs:     []string{"list", "get", "watch"},
+			},
+		},
+	}
+	ctrl.SetControllerReference(spec, role, r.Scheme)
+	err := r.Create(ctx, role)
+	return role, err
+}
+
 // createRoleBinding creates the role binding to allow wfmanager to create jobs
 func (r *StateMachineReconciler) createRoleBinding(
 	ctx context.Context,
@@ -119,6 +162,31 @@ func (r *StateMachineReconciler) createRoleBinding(
 		RoleRef: rbacv1.RoleRef{
 			Kind:     "Role",
 			Name:     spec.RoleName(),
+			APIGroup: "rbac.authorization.k8s.io",
+		},
+	}
+	ctrl.SetControllerReference(spec, binding, r.Scheme)
+	err := r.Create(ctx, binding)
+	return binding, err
+}
+
+func (r *StateMachineReconciler) createClusterRoleBinding(
+	ctx context.Context,
+	spec *api.StateMachine,
+) (*rbacv1.ClusterRoleBinding, error) {
+	mLog.Info("Creating role binding for cluster role: ", spec.Name, spec.Namespace)
+	binding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: spec.ClusterRoleName(), Namespace: spec.Namespace},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      spec.Name,
+				Namespace: spec.Namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind:     "ClusterRole",
+			Name:     spec.ClusterRoleName(),
 			APIGroup: "rbac.authorization.k8s.io",
 		},
 	}
