@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import threading
+import time
 from logging import getLogger
 
 from kubernetes import client, config, watch
@@ -94,6 +95,7 @@ class Watcher:
         # These two are usually the same, and we are interested in the transition
         condition["last_transition_time"] = condition["last_transition_time"].timestamp()
         del condition["last_heartbeat_time"]
+        condition["recorded_at"] = time.time()
         return condition
 
     def find_condition(self, node, condition_name, state=None):
