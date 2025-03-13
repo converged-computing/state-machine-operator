@@ -73,12 +73,16 @@ func populateJobDefaults(job *api.JobStep) {
 	if job.Config.CoresPerTask == 0 {
 		job.Config.CoresPerTask = 6
 	}
-	// No default walltime set
+	// Set default arch, if unset
+	if job.Arch == "" {
+		job.Arch = "amd64"
+	}
 
 	// Add space in front of each line of the script
 	// This is needed so it renders into the yaml
 	if job.Script != "" {
-		job.Script = preamble + install_oras + pull_oras + job.Script + push_oras
+		installOras = fmt.Sprintf(install_oras, job.OrasArch)
+		job.Script = preamble + installOras + pull_oras + job.Script + push_oras
 		job.Script = strings.ReplaceAll(job.Script, "\n", "\n  ")
 	}
 

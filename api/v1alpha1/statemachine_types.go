@@ -92,6 +92,12 @@ type JobStep struct {
 	// +optional
 	Registry RegistryConfig `json:"registry,omitempty"`
 
+	// Architecture (arm64 or amd64)
+	// +kubebuilder:default="amd64"
+	// +default="amd64"
+	// +optional
+	Arch string `json:"arch,omitempty"`
+	
 	// Custom data config to provide to worker
 	// + optional
 	AppConfig string `json:"appConfig,omitempty"`
