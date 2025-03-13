@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"fmt"
 	"bytes"
 	"strings"
 
@@ -12,7 +13,7 @@ var (
 # Install oras
 cd /tmp
 VERSION="1.2.2"
-curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_%s.tar.gz"
 mkdir -p oras-install/
 tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
 mv oras-install/oras /usr/local/bin/ || sudo mv oras-install/oras /usr/local/bin/
@@ -73,12 +74,16 @@ func populateJobDefaults(job *api.JobStep) {
 	if job.Config.CoresPerTask == 0 {
 		job.Config.CoresPerTask = 6
 	}
-	// No default walltime set
+	// Set default arch, if unset
+	if job.Arch == "" {
+		job.Arch = "amd64"
+	}
 
 	// Add space in front of each line of the script
 	// This is needed so it renders into the yaml
 	if job.Script != "" {
-		job.Script = preamble + install_oras + pull_oras + job.Script + push_oras
+		installOras := fmt.Sprintf(install_oras, job.Arch)
+		job.Script = preamble + installOras + pull_oras + job.Script + push_oras
 		job.Script = strings.ReplaceAll(job.Script, "\n", "\n  ")
 	}
 
