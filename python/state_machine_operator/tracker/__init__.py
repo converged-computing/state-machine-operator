@@ -1,5 +1,7 @@
 import state_machine_operator.defaults as defaults
 
+from .watcher import Watcher
+
 
 def load(name):
     """

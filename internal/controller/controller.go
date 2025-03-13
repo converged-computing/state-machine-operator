@@ -61,6 +61,7 @@ func NewStateMachineReconciler(
 // +kubebuilder:rbac:groups=state-machine.converged-computing.org,resources=statemachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=state-machine.converged-computing.org,resources=statemachines/finalizers,verbs=update
 
+//+kubebuilder:rbac:groups=core,resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -86,8 +87,8 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="rolebindings",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="roles",verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources="rolebindings",verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources="roles",verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="clusterrolebindings",verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="clusterroles",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;exec
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;list;watch;create;update;patch;delete;exec
 //+kubebuilder:rbac:groups="",resources=jobs/status,verbs=get;list;watch;create;update;patch;delete;exec

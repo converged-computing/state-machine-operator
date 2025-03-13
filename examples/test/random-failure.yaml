@@ -1,0 +1,36 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+    interactive: true
+  workflow:
+    completed: 20
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: |
+      sleep 5
+      selections=("yes" "no")
+      random_index=$((RANDOM % ${#selections[@]}))
+      choice="${selections[$random_index]}"
+      if [[ "$choice" == "yes" ]]; then
+         exit 1
+      fi
+
+  - name: job_b
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: |
+      sleep 5
+      exit 1
