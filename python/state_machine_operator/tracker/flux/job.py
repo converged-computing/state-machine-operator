@@ -35,9 +35,6 @@ class FluxJob(BaseJob):
         self.jobspec = jobspec
         self.fluxid = jobid
 
-        # Get the state at time of completion
-        self.state = flux.job.get_job(handle, self.fluxid)
-
     @property
     def label(self):
         return f"{self.jobid}_{self.step_name}"
@@ -55,6 +52,13 @@ class FluxJob(BaseJob):
     @property
     def step_name(self):
         return self.jobspec["attributes"]["user"].get("app")
+
+    @property
+    def state(self):
+        """
+        State must always be retrieved dynamically
+        """
+        return flux.job.get_job(handle, self.fluxid)
 
     def is_active(self):
         """

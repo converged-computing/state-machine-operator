@@ -19,10 +19,10 @@ skip_events = [
     "alloc",
     "release",
     "free",
-    "clean",
+    "finish",
 ]
 
-# Mostly interested in final and start
+# We use start and clean, as start is when the job actually starts, but clean is the last job event.
 
 
 def stream_events():
