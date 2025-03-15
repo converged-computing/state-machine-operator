@@ -847,7 +847,7 @@ spec:
         control-plane: controller-manager
     spec:
       nodeSelector:
-        node.kubernetes.io/instance-type: m6a.4xlarge
+        node.kubernetes.io/instance-type: c7a.4xlarge
       containers:
       - args:
         - --metrics-bind-address=:8443
