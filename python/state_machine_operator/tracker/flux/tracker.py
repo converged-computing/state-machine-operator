@@ -65,14 +65,15 @@ class FluxJob(Job):
         if not os.path.exists(entrypoint):
             utils.write_file(step.script, entrypoint)
 
-        # TODO expose more here?
-        # QUESTION: is a flux task == what we are using for procs?
+        exclusive = self.config.get("exclusive") in utils.true_values
+        num_tasks = max(1, self.config.get("tasks") or 1)
         jobspec = flux.job.JobspecV1.from_command(
             command=command,
-            # TODO add tasks here, right now assume == number of nodes
             num_nodes=step.nodes,
-            num_tasks=step.nodes,
+            num_tasks=num_tasks,
+            cores_per_task=step.cores_per_task,
             gpus_per_task=step.gpus,
+            exclusive=exclusive,
         )
 
         # Set user attribute we can later retrieve to identify group
@@ -147,6 +148,7 @@ class FluxTracker(BaseTracker):
             gpus=self.ngpus,
             workdir=workdir,
         )
+
         configfile = os.path.join(workdir, "app-config")
 
         if "script" in self.job_desc:
