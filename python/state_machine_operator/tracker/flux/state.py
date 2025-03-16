@@ -56,6 +56,9 @@ def list_jobs(*args, **kwargs):
 def queued_jobs(namespace=None):
     """
     A queued job is not active and doesn't have a completion time.
+
+    We haven't used this yet so it should throw up if we do
+    (and then we will write it :)
     """
     print("flux queued jobs")
     import IPython
@@ -119,17 +122,17 @@ def list_jobs_by_status(label_name="app", label_value=None):
     # These are the lists we will populate.
     states = {"success": [], "failed": [], "running": [], "queued": [], "unknown": []}
     for job in jobs:
-        if job["result"] == "COMPLETED" and job["success"]:
+        if job["status"] == "COMPLETED":
             states["success"].append(Job(job))
             continue
 
         # Failure means we finished with failed condition
-        if job["result"] == "COMPLETED" and not job["success"]:
-            states["failed"].append(job)
+        if job["status"] == "FAILED":
+            states["failed"].append(Job(job))
             continue
 
-        # Pending
-        if job["state"] == "SCHED":
+        # Pending or queued
+        if job["state"] in ["NEW", "DEPEND", "PRIORITY", "SCHED"]:
             states["queued"].append(Job(job))
             continue
 

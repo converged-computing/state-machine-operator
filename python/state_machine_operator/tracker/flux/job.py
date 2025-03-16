@@ -70,7 +70,7 @@ class FluxJob(BaseJob):
         """
         Determine if a job is completed
         """
-        return self.state["status"] == "COMPLETED"
+        return self.state["status"] in ["COMPLETED", "FAILED"]
 
     def is_failed(self):
         """
