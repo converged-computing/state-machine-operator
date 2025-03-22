@@ -419,6 +419,19 @@ rules:
   - update
   - watch
 - apiGroups:
+  - batch
+  resources:
+  - pods/log
+  verbs:
+  - create
+  - delete
+  - exec
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ""
   resources:
   - ""
@@ -846,8 +859,6 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
-      nodeSelector:
-        node.kubernetes.io/instance-type: c7a.4xlarge
       containers:
       - args:
         - --metrics-bind-address=:8443

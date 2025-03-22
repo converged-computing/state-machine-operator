@@ -91,18 +91,22 @@ def is_succeeded(self, state_name=None):
     return getattr(self, f"{state_name}_success", False) is True
 
 
-def mark_succeeded(self, state_name=None):
+def mark_succeeded(self, job=None, state_name=None):
     """
     Mark the current state succeeded (default) or another specific state.
     """
+    tracker = self.trackers[self.current_state.id]
+    tracker.save_log(job)
     state_name = state_name or self.current_state.id
     setattr(self, f"{state_name}_success", True)
 
 
-def mark_failed(self, state_name=None):
+def mark_failed(self, job=None, state_name=None):
     """
     Mark the current state failed (default) or another specific state.
     """
+    tracker = self.trackers[self.current_state.id]
+    tracker.save_log(job)
     state_name = state_name or self.current_state.id
     setattr(self, f"{state_name}_failure", True)
 
@@ -121,7 +125,7 @@ def mark_running(self, running_state):
             return
         # If we get here, we have not hit the running state
         # We assume we completed previous states with success
-        self.mark_succeeded(state)
+        self.mark_succeeded(state_name=state)
 
 
 def on_change(self):

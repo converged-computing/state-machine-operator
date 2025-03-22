@@ -93,7 +93,8 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get;list;watch;create;update;patch;delete;exec
 //+kubebuilder:rbac:groups="",resources=jobs/status,verbs=get;list;watch;create;update;patch;delete;exec
 //+kubebuilder:rbac:groups=batch,resources=configmaps,verbs=get;list;watch;create;update;patch;delete;exec
-//+kubebuilder:rbac:groups=batch,resources=pods,verbs=get;list;watch;create;update;patch;delete;exec
+//+kubebuilder:rbac:groups=batch,resources=pods,verbs=get;list;watch;create;update;patch;delete;exec;
+//+kubebuilder:rbac:groups=batch,resources=pods/log,verbs=get;list;watch;create;update;patch;delete;exec;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

@@ -125,6 +125,16 @@ class BaseTracker:
         return self.job_desc["name"]
 
     @property
+    def save_path(self):
+        return (self.properties or {}).get("save-path")
+
+    def save_log(self, job=None):
+        """
+        Save a log for a job to a user-specified location.
+        """
+        pass
+
+    @property
     def properties(self):
         """
         Properties are attributes that are specific to a tracker.
