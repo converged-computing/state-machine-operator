@@ -394,7 +394,7 @@ class WorkflowManager:
         """
         self.add_timestamp(f"{job.label}_succeeded")
         LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
-        state_machine.mark_succeeded()
+        state_machine.mark_succeeded(job)
         # Only change if we aren't complete
         if state_machine.current_state.id != "complete":
             state_machine.change()
@@ -448,7 +448,7 @@ class WorkflowManager:
                 LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
                 # Marking a job failed deletes all Kubernetes objects associated across stages.
                 # We do this because we assume no step should be retried, etc.
-                state_machine.mark_failed()
+                state_machine.mark_failed(job)
                 # If we get here, the job has already done retries for the step
                 # We need to cancel the state machine (all associated jobs)
                 state_machine.cleanup()

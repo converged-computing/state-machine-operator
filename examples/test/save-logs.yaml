@@ -1,0 +1,40 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+    
+  workflow:
+    completed: 2
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    properties:
+      save-path: "/opt"
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the first
+    
+  - name: job_b
+    properties:
+      save-path: "/opt"
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the second
+    
+  - name: job_c
+    config:
+      nodes: 1
+      coresPerTask: 1
+    properties:
+      save-path: "/opt"
+    image: rockylinux:9
+    script: echo This is the third

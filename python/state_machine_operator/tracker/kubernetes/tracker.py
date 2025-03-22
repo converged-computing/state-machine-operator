@@ -1,4 +1,5 @@
 import json
+import os
 import shlex
 from logging import getLogger
 
@@ -6,6 +7,7 @@ from jinja2 import Template
 from kubernetes import client, config
 
 import state_machine_operator.defaults as defaults
+import state_machine_operator.utils as utils
 from state_machine_operator.tracker.tracker import BaseTracker, Job
 from state_machine_operator.tracker.types import (
     CancelCode,
@@ -21,6 +23,9 @@ LOGGER = getLogger(__name__)
 
 # This assumes the wfmanager running inside the cluster
 config.load_incluster_config()
+
+# Container name for job step
+container_name = "step"
 
 
 class KubernetesJob(Job):
@@ -142,7 +147,7 @@ class KubernetesJob(Job):
         # Job container to run the script
         container = client.V1Container(
             image=self.job_desc["image"],
-            name="step",
+            name=container_name,
             command=[command[0]],
             args=command[1:],
             image_pull_policy=pull_policy,
@@ -322,6 +327,47 @@ class KubernetesTracker(BaseTracker):
             raise ValueError(
                 f"The 'image' attribute is required, and not present in {self.adapter.job_name}"
             )
+
+    def save_log(self, job=None):
+        """
+        Save a log identifier for a finished pod (job)
+        """
+        if not self.save_path or not Job:
+            return
+        api = client.CoreV1Api()
+
+        # Get pods associated with the job
+        selector = f"batch.kubernetes.io/job-name={job.job.metadata.name}"
+        pods = api.list_namespaced_pod(
+            label_selector=selector, namespace=job.job.metadata.namespace
+        ).items
+
+        # Create the save path
+        logs_path = os.path.join(self.save_path, "logs")
+        if not os.path.exists(logs_path):
+            os.makedirs(logs_path)
+
+        # We might have one pod, but can't assume
+        for i, pod in enumerate(pods):
+            try:
+                logs = api.read_namespaced_pod_log(
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    container=container_name,
+                    follow=False,
+                    timestamps=True,
+                )
+                log_file = os.path.join(
+                    logs_path,
+                    f"{job.job.metadata.labels['app']}-{job.job.metadata.labels['jobid']}-{i}.out",
+                )
+                # Don't write twice
+                if not os.path.exists(log_file):
+                    utils.write_file(logs, log_file)
+
+            except client.exceptions.ApiException as e:
+                print(f"Error getting logs: {e}")
+                return
 
     def create_step(self, jobid):
         """

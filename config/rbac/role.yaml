@@ -102,6 +102,19 @@ rules:
   - update
   - watch
 - apiGroups:
+  - batch
+  resources:
+  - pods/log
+  verbs:
+  - create
+  - delete
+  - exec
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - ""
   resources:
   - ""

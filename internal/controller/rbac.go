@@ -112,7 +112,7 @@ func (r *StateMachineReconciler) createRole(
 		Rules: []rbacv1.PolicyRule{
 			{
 				APIGroups: []string{"", "batch"},
-				Resources: []string{"pods", "jobs", "configmaps", "jobs/status"},
+				Resources: []string{"pods", "pods/log", "jobs", "configmaps", "jobs/status"},
 				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
 			},
 		},
