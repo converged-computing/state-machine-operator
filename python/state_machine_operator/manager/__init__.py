@@ -61,6 +61,12 @@ def get_parser():
         help="Directory with configuration files.",
     )
     start.add_argument(
+        "--quiet",
+        help="Don't print progress",
+        default=False,
+        action="store_true",
+    )
+    start.add_argument(
         "--plain-http",
         help="Use plain http for the registry.",
         default=False,
@@ -108,6 +114,7 @@ def main():
         # Will overwrite what is set in config
         workdir=args.workdir,
         plain_http=args.plain_http,
+        quiet=args.quiet,
     )
     manager.start()
 

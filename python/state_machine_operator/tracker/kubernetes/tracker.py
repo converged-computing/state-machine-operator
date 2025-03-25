@@ -349,6 +349,7 @@ class KubernetesTracker(BaseTracker):
 
         # We might have one pod, but can't assume
         for i, pod in enumerate(pods):
+            print(f"Saving log for {pod.metadata.name}")
             try:
                 logs = api.read_namespaced_pod_log(
                     name=pod.metadata.name,
@@ -363,7 +364,10 @@ class KubernetesTracker(BaseTracker):
                 )
                 # Don't write twice
                 if not os.path.exists(log_file):
+                    print(f"Saving log file {log_file}")
                     utils.write_file(logs, log_file)
+                else:
+                    print(f"Log file {log_file} already exists")
 
             except client.exceptions.ApiException as e:
                 print(f"Error getting logs: {e}")
