@@ -31,6 +31,7 @@ class WorkflowManager:
         workdir=None,
         registry=None,
         plain_http=False,
+        quiet=False,
     ):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
@@ -47,6 +48,7 @@ class WorkflowManager:
 
         # Working directory = first preference to command line
         self.workflow.set_workdir(workdir)
+        self.quiet = quiet
 
         # Running modes (we only allow kubernetes for now)
         LOGGER.info(f" Job Prefix: [{self.prefix}]")
@@ -137,7 +139,7 @@ class WorkflowManager:
         jobs = self.list_jobs_by_status()
 
         # Give a warning about unknown jobs
-        # In practice, I don't know why this would happen.
+        # In practice, this is a state not properly accounted for
         if jobs["unknown"]:
             LOGGER.warning(f"Found {len(jobs['unknown'])} unknown jobs to investigate.")
 
@@ -265,6 +267,9 @@ class WorkflowManager:
             self.watcher.save(self.save_dir)
 
             self.save_times()
+
+            # For extra files to write
+            time.sleep(5)
             sys.exit(0)
 
     @property
@@ -313,19 +318,23 @@ class WorkflowManager:
         # submit_n negative would be OK, a 0-> negative range is empty
         submit_n = max(submit_n, 0)
 
-        LOGGER.info(f"\n> 🌀 Starting step {step['name']}")
-        LOGGER.info("> Workflow needs")
-        LOGGER.info(f"  > total completions           {self.workflow.completions_needed} ")
-        LOGGER.info(f"  > max nodes allowed use       {self.workflow.max_size}\n")
-        LOGGER.info("> Current state")
-        LOGGER.info(f"  > nodes / step                {nodes_needed} ")
-        LOGGER.info(f"  > jobs needed                 {jobs_needed} ")
-        LOGGER.info(f"  > nodes allowed               {nodes_allowed} ")
-        LOGGER.info(f"  > jobs allowed                {jobs_allowed}\n")
-        LOGGER.info("> Workflow progress")
-        LOGGER.info(f"  > Completions                 {completions}")
-        LOGGER.info(f"  > In progress                 {active_jobs}")
-        LOGGER.info(f"  > New job sequences submit    {submit_n} ")
+        logfn = LOGGER.info
+        if self.quiet:
+            logfn = LOGGER.debug
+
+        logfn(f"\n> 🌀 Starting step {step['name']}")
+        logfn("> Workflow needs")
+        logfn(f"  > total completions           {self.workflow.completions_needed} ")
+        logfn(f"  > max nodes allowed use       {self.workflow.max_size}\n")
+        logfn("> Current state")
+        logfn(f"  > nodes / step                {nodes_needed} ")
+        logfn(f"  > jobs needed                 {jobs_needed} ")
+        logfn(f"  > nodes allowed               {nodes_allowed} ")
+        logfn(f"  > jobs allowed                {jobs_allowed}\n")
+        logfn("> Workflow progress")
+        logfn(f"  > Completions                 {completions}")
+        logfn(f"  > In progress                 {active_jobs}")
+        logfn(f"  > New job sequences submit    {submit_n} ")
 
         # If submit is > than completions needed, we don't need that many
         # TODO we would also downscale the cluster here
@@ -416,7 +425,6 @@ class WorkflowManager:
         Watch is an event driven means to watch for changes and update job states
         accordingly.
         """
-        # TODO we should have some kind of check that does not rely on an event
         for job in self.tracker.stream_events():
 
             # Not a job associated with the workflow, or is ignored

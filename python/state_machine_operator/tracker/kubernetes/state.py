@@ -58,23 +58,33 @@ def list_jobs_by_status(label_name="app", label_value=None):
     states = {"success": [], "failed": [], "running": [], "queued": [], "unknown": []}
 
     for job in jobs:
+
+        # These are *counts* of job indices, not boolean 0/1
+        succeeded = job.status.succeeded
+        failed = job.status.failed
+        active = job.status.active
+        not_active = active in [0, None]
+
+        # This is a completion time for the job
+        completion_time = job.status.completion_time
+
         # Success means we finished with succeeded condition
-        if job.status.succeeded == 1 and job.status.completion_time is not None:
+        if succeeded is not None and succeeded > 0 and completion_time is not None:
             states["success"].append(Job(job))
             continue
 
         # Failure means we finished with failed condition
-        if job.status.failed == 1:
+        if failed is not None and failed > 0:
             states["failed"].append(Job(job))
             continue
 
         # Not active, and not finished is queued
-        if not job.status.active and not job.status.completion_time:
+        if not_active and not completion_time:
             states["queued"].append(Job(job))
             continue
 
         # Active, and not finished is running
-        if job.status.active == 1 and not job.status.completion_time:
+        if active and not completion_time:
             states["running"].append(Job(job))
             continue
 

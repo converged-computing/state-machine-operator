@@ -40,15 +40,16 @@ class Job(BaseJob):
 
     def is_failed(self):
         """
-        Determine if a job is failed
+        Determine if a job is failed.
         """
-        return self.job.status.failed == 1
+        return not self.is_succeeded()
 
     def is_succeeded(self):
         """
         Determine if a job has succeeded
+        We need to have a completion time and no failed indices.
         """
-        return self.job.status.succeeded == 1
+        return self.is_completed and not self.job.status.failed
 
 
 def get_namespace():

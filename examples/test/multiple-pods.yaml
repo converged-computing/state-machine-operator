@@ -5,7 +5,7 @@ metadata:
 spec:
   manager:
     pullPolicy: Never
-
+    interactive: true
   workflow:
     completed: 2
   cluster:
@@ -25,7 +25,7 @@ spec:
     properties:
       save-path: "/opt"
     config:
-      nodes: 1
+      nodes: 4
       coresPerTask: 1
     image: rockylinux:9
     script: echo This is the second
