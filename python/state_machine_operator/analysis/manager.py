@@ -1,6 +1,7 @@
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas
+import seaborn as sns
 
 import state_machine_operator.utils as utils
 
@@ -11,8 +12,14 @@ class NodesTimesParser:
     parser=NodesTimesParser(node_filter=["t3.large"])
     """
 
-    def __init__(self, node_filter=None, label_name="node.kubernetes.io/instance-type"):
+    def __init__(
+        self, node_filter=None, label_name="node.kubernetes.io/instance-type", palette="muted"
+    ):
+        """
+        Create a nodes time parser.
+        """
         self.total_times = {}
+        self.palette = palette
         self.node_filter = node_filter
         # Label to filter by using listing above
         self.label_name = label_name
@@ -36,7 +43,18 @@ class NodesTimesParser:
         if iteration not in self.total_times[experiment]:
             self.total_times[experiment][iteration] = []
 
-    def to_gantt(self, outfile, title="Node Uptimes for Static vs Autoscaling"):
+    def generate_colors(self, items):
+        """
+        Generate some number of colors for a lookup.
+        """
+        colors = {}
+        palette = sns.color_palette(self.palette, len(items))
+        hexcolors = palette.as_hex()
+        for item in items:
+            colors[item] = hexcolors.pop(0)
+        return colors
+
+    def to_gantt(self, outfile, title="Node Uptimes for Static vs Autoscaling", colors=None):
         """
         Make a gantt chart of nodes over time
         """
@@ -57,8 +75,8 @@ class NodesTimesParser:
             for iteration in subset.iteration.unique():
                 number_plots += 1
 
-        # y and b are good too
-        colors = {"static": "c", "autoscale": "m"}
+        # Colors based on experiment type
+        colors = colors or self.generate_colors(self.df.experiment.unique())
 
         patches = []
         for color in colors.values():
