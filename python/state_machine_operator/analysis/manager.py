@@ -36,7 +36,7 @@ class NodesTimesParser:
         if iteration not in self.total_times[experiment]:
             self.total_times[experiment][iteration] = []
 
-    def to_gantt(self, outfile):
+    def to_gantt(self, outfile, title="Node Uptimes for Static vs Autoscaling"):
         """
         Make a gantt chart of nodes over time
         """
@@ -87,7 +87,7 @@ class NodesTimesParser:
                 idx += 1
 
         plt.subplots_adjust(top=0.95)
-        fig.suptitle("Node Uptimes for Static vs Autoscaling", fontsize=11)
+        fig.suptitle(title, fontsize=11)
         fig.legend(handles=patches, labels=colors.keys(), fontsize=11)
         plt.savefig(outfile)
 
