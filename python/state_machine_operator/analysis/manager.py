@@ -45,6 +45,12 @@ class NodesTimesParser:
             row[1].start_time - row[1].workflow_start for row in self.df.iterrows()
         ]
 
+        self.df["end_time_normalized"] = [
+            row[1].down_time - row[1].workflow_start for row in self.df.iterrows()
+        ]
+
+        # We need the maximum end time to make all the axis the same
+        max_end_time = self.df.end_time_normalized.max()
         number_plots = 0
         for experiment in self.df.experiment.unique():
             subset = self.df[self.df.experiment == experiment]
@@ -63,7 +69,9 @@ class NodesTimesParser:
         idx = 0
         for experiment in self.df.experiment.unique():
             exp_subset = self.df[self.df.experiment == experiment]
-            for iteration in exp_subset.iteration.unique():
+            iterations = exp_subset.iteration.unique()
+            iterations.sort()
+            for iteration in iterations:
                 subset = exp_subset[exp_subset.iteration == iteration]
                 for index, row in subset.iterrows():
                     axs[idx].barh(
@@ -72,6 +80,7 @@ class NodesTimesParser:
                         left=row.start_time_normalized,
                         color=colors[row.experiment],
                     )
+                axs[idx].set_xlim(0, max_end_time)
                 axs[idx].xaxis.grid(True, alpha=0.5)
                 axs[idx].set_title(f"{experiment.capitalize()} cluster iteration {iteration}")
                 plt.tight_layout()
