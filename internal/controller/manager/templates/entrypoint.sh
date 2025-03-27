@@ -12,7 +12,12 @@ workflow:
   events: {{ range .Spec.Workflow.Events }}
     - action: {{ .Action }}
       when: "{{ if .When }}{{ .When }}{{ else }}> 0{{ end }}"
+      minCompletions: {{ if .MinCompletions }}{{ .MinCompetions }}{{ else }}1{{ end }}
+      minSize: {{ if .MinSize }}{{ .MinSize }}{{ else }}1{{ end }}
+      maxSize: {{ if .MaxSize }}{{ .MaxSize }}{{ else }}null{{ end }}
+      repetitions: {{ if .Repetitions }}{{ .Repetitions }}{{ else }}1{{ end }}
       metric: {{ .Metric }}
+      backoff: {{ if .Backoff }}{{ .Backoff }}{{ else }}null{{ end }}
 {{ end }}{{ end }}
 cluster:
   max_size: {{ .Spec.Cluster.MaxSize }}

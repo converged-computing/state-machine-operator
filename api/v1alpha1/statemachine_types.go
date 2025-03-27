@@ -88,6 +88,9 @@ type WorkflowEvent struct {
 	// Backoff and repetitions to respond to event
 	Backoff     int32 `json:"backoff,omitempty"`
 	Repetitions int32 `json:"repetitions,omitempty"`
+	MinCompletions int32 `json:"minCompletions,omitempty"`
+	MaxSize int32 `json:"maxSize,omitempty"`
+	MinSize int32 `json:"minSize,omitempty"`
 }
 
 // A JobSequence is a list of JobSteps

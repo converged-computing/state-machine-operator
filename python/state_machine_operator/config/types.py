@@ -23,6 +23,10 @@ class Rule:
         if self.when is None:
             return True
 
+        # This ensures we check backoff, etc.
+        if not self.action.perform():
+            return False
+
         # If we have a direct value, we check for equality
         number = (int, float)
         if isinstance(self.when, number) and value != self.when:
@@ -155,6 +159,18 @@ class Action:
     @property
     def name(self):
         return self._action["action"]
+
+    @property
+    def min_completions(self):
+        return self._action.get("minCompletions")
+
+    @property
+    def max_size(self):
+        return self._action.get("maxSize")
+
+    @property
+    def min_size(self):
+        return self._action.get("minSize")
 
     @property
     def metric(self):

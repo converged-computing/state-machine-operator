@@ -1,6 +1,6 @@
-from river import stats
+import json
 
-import state_machine_operator.utils as utils
+from river import stats
 
 model_inits = {
     "variance": stats.Var,
@@ -28,29 +28,21 @@ class WorkflowMetrics:
         # Counters are separate
         self.models["count"] = {}
 
-        # Cache for all group model keys
-        self.keys = set()
-
     def summarize_all(self):
         """
         Summarize all models
         """
-        for key in self.keys:
-            self.summary(key)
-
-    def summary(self, key):
-        """
-        Summarize currently known models under a key
-        """
-        print(f"🌊 Streaming ML Model Summary {key}: ", end="")
+        print("🌊 Streaming ML Model Summary: ", end="")
         items = {}
-        for model_name in model_inits:
-            models = self.models[model_name]
-            if key not in models:
-                continue
-            model = models[key]
-            items[model_name] = model.get()
-        print(utils.pretty_print_list(items))
+        for model_name, models in self.models.items():
+            if model_name not in items:
+                items[model_name] = {}
+            for step_name, keys in models.items():
+                if step_name not in items[model_name]:
+                    items[model_name][step_name] = {}
+                for key, model in keys.items():
+                    items[model_name][step_name] = round(model.get(), 3)
+        print(json.dumps(items))
         return items
 
     def increment_counter(self, key, step=None):
@@ -68,13 +60,13 @@ class WorkflowMetrics:
             self.models["count"][step][key] = stats.Count()
         self.models["count"][step][key].update()
 
-    def add_model_entry(self, key, value, model_name=None):
+    def add_model_entry(self, key, value, step=None, model_name=None):
         """
         Record a datum for one or more models.
 
         If model_name is not set, add to add models.
         """
-        self.keys.add(key)
+        step = step or "global"
 
         # This should be all models except for counts
         model_names = list(model_inits)
@@ -82,6 +74,8 @@ class WorkflowMetrics:
             model_names = [model_name]
 
         for model_name in model_names:
-            if key not in self.models[model_name]:
-                self.models[model_name][key] = model_inits[model_name]()
-            self.models[model_name][key].update(value)
+            if step not in self.models[model_name]:
+                self.models[model_name][step] = {}
+            if key not in self.models[model_name][step]:
+                self.models[model_name][step][key] = model_inits[model_name]()
+            self.models[model_name][step][key].update(value)

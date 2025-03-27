@@ -7,6 +7,17 @@ spec:
     pullPolicy: Never
   workflow:
     completed: 10
+    events:
+      # When more than half of job b's fail, finish the entire workflow
+      - metric: mean.job_b.duration
+        when: "<= 60"
+        action: shrink
+        # Size 4 cluster, max decreases down to 1
+        repetitions: 3
+        # Require checks between before doing again
+        # TODO check if this is working correctly.
+        # also check the .get()
+        backoff: 3
 
   cluster:
     maxSize: 2
@@ -22,7 +33,7 @@ spec:
   # Note that this step always fails and we never make it to C
   # This should end the workflow early
   - name: job_b
-    properties: 
+    properties:
       minicluster: "yes"
     config:
       nodes: 4

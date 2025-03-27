@@ -258,10 +258,19 @@ spec:
                           description: Backoff and repetitions to respond to event
                           format: int32
                           type: integer
+                        maxSize:
+                          format: int32
+                          type: integer
                         metric:
                           description: Name of metric, indexed into model lookup (e.g.,
                             count.job_b.failed)
                           type: string
+                        minCompletions:
+                          format: int32
+                          type: integer
+                        minSize:
+                          format: int32
+                          type: integer
                         repetitions:
                           format: int32
                           type: integer

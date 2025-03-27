@@ -342,6 +342,9 @@ class KubernetesJob(Job):
             "maxSize": step.nodes + 100,
             "size": step.nodes,
             "tasks": step.cores_per_task,
+            "network": {
+                "headlessName": step.name,
+            },
         }
         if walltime:
             spec["deadlineSeconds"] = int(walltime)

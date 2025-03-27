@@ -469,18 +469,66 @@ class WorkflowManager:
 
                 # And check against the condition
                 if trigger.should_trigger(value):
-                    self.trigger_workflow_action(trigger.action.name)
+                    self.trigger_workflow_action(trigger, step_name, value)
 
-    def trigger_workflow_action(self, action_name):
+    def trigger_grow(self, trigger, step_name, value):
+        """
+        Trigger the job to grow
+        """
+        previous = self.workflow.jobs[step_name]["config"]["nnodes"]
+        max_size = trigger.action.max_size
+        if max_size >= previous + 1:
+            LOGGER.info(
+                f"Grow triggered: {trigger.action.metric} {trigger.when} ({value}), already >= max size {max_size}"
+            )
+            return
+
+        self.workflow.jobs[step_name]["config"]["nnodes"] += 1
+        updated = self.workflow.jobs[step_name]["config"]["nnodes"]
+        LOGGER.info(
+            f"Grow triggered: {trigger.action.metric} {trigger.when} ({value}), nodes {previous}=>{updated}"
+        )
+
+    def trigger_shrink(self, trigger, step_name, value):
+        """
+        Trigger the job to shrink, down to a min size of 1
+        """
+        previous = self.workflow.jobs[step_name]["config"]["nnodes"]
+        min_size = trigger.action.min_size or 1
+        if previous <= min_size:
+            LOGGER.info(
+                f"Shrink triggered: {trigger.action.metric} {trigger.when} ({value}), already at min size {min_size}"
+            )
+            return
+        self.workflow.jobs[step_name]["config"]["nnodes"] -= 1
+        updated = self.workflow.jobs[step_name]["config"]["nnodes"]
+        LOGGER.info(
+            f"Shrink triggered: {trigger.action.metric} {trigger.when} ({value}), nodes {previous}=>{updated}"
+        )
+
+    def trigger_workflow_action(self, trigger, step_name, value):
         """
         Given an action name, issue it for the workflow
         """
-        if action_name == "finish-workflow":
+        # This action has a minimum number of total completions
+        if trigger.action.min_completions:
+            completions = len(self.get_current_state()["completed"])
+            if completions < trigger.action.min_completions:
+                return
+
+        # Check if we have enough completions
+        if trigger.action.name == "finish-workflow":
             # TODO: add more detail in calling function to event trigger
-            LOGGER.info("Workflow completion triggered, ending workflow.")
+            LOGGER.info(
+                f"Workflow completion triggered: {trigger.action.metric} {trigger.when} ({value})"
+            )
             self.complete_workflow()
 
-        # TODO add support for grow, shrink
+        if trigger.action.name == "grow":
+            self.trigger_grow(trigger, step_name, value)
+
+        if trigger.action.name == "shrink":
+            self.trigger_shrink(trigger, step_name, value)
 
     def update_metrics(self, job):
         """
@@ -495,7 +543,7 @@ class WorkflowManager:
         # Add job duration if supported by tracker
         duration = job.duration()
         if job.is_completed() and duration is not None:
-            self.metrics.add_model_entry("duration", duration)
+            self.metrics.add_model_entry("duration", duration, step=job.step_name)
 
     def add_timestamp_first_seen(self, label):
         """
