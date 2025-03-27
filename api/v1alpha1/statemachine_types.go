@@ -70,7 +70,24 @@ type Workflow struct {
 	// Prefix for jobs (e.g., structure_ for mummi)
 	Prefix string `json:"prefix,omitempty"`
 
-	// TODO add a failure condition?
+	// Custom events  -> actions to take
+	Events []WorkflowEvent `json:"events,omitempty"`
+}
+
+type WorkflowEvent struct {
+
+	// Name of metric, indexed into model lookup (e.g., count.job_b.failed)
+	Metric string `json:"metric"`
+
+	// Conditional to check. If not set, checks if nonzero or nonempty
+	When string `json:"when,omitempty"`
+
+	// Action to take (e.g., finish-workflow)
+	Action string `json:"action"`
+
+	// Backoff and repetitions to respond to event
+	Backoff     int32 `json:"backoff,omitempty"`
+	Repetitions int32 `json:"repetitions,omitempty"`
 }
 
 // A JobSequence is a list of JobSteps

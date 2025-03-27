@@ -51,6 +51,17 @@ class Job(BaseJob):
         """
         return self.is_completed and not self.job.status.failed
 
+    def duration(self):
+        """
+        Get the job duration, if supported.
+
+        This should be total seconds.
+        """
+        # Cut out early if we haven't started and finished!
+        if self.job.status.completion_time is None or self.job.status.start_time is None:
+            return
+        return (self.job.status.completion_time - self.job.status.start_time).total_seconds()
+
 
 def get_namespace():
     """

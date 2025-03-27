@@ -3,6 +3,7 @@ import sys
 
 import jsonschema
 
+import state_machine_operator.config.types as types
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 from state_machine_operator import schema
@@ -51,6 +52,7 @@ class WorkflowConfig:
         self.load(config_path, config_dir)
         self.jobs = {}
         self.load_jobs()
+        self.load_events()
 
     def load(self, config_path, config_dir=None):
         """
@@ -62,6 +64,26 @@ class WorkflowConfig:
         self.filename = find_config(config_dir, config_path)
         self.cfg = utils.read_yaml(self.filename)
         self.config_dir = config_dir
+
+    def load_events(self):
+        """
+        Load and validate workflow
+        """
+        # TODO: support for custom actions or events?
+        events = self.cfg["workflow"].get("events")
+        self.rules = {}
+        if not events:
+            return
+
+        for event in events:
+            rule = types.Rule(event)
+
+            # Group rules based on metrics
+            if rule.action.metric not in self.rules:
+                self.rules[rule.action.metric] = []
+
+            # Rules are removed when they are performed
+            self.rules[rule.action.metric].append(rule)
 
     def get(self, name, default=None):
         return self.cfg.get(name, default)

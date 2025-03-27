@@ -22,6 +22,17 @@ state_machine_config_schema = {
             "properties": {
                 "completed": {"type": "number", "default": 4},
                 "prefix": {"type": "string"},
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                            "when": {"type": "string"},
+                            "metric": {"type": "string"},
+                        },
+                    },
+                },
             },
             "additionalProperties": False,
         },

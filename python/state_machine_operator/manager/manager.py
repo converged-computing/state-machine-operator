@@ -15,6 +15,7 @@ import state_machine_operator.tracker as tracker
 import state_machine_operator.utils as utils
 from state_machine_operator.machine import new_state_machine
 
+from .metrics import WorkflowMetrics
 from .utils import timed
 
 # Print debug for now
@@ -32,6 +33,7 @@ class WorkflowManager:
         registry=None,
         plain_http=False,
         quiet=False,
+        workflow_metrics=None,
     ):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
@@ -57,6 +59,10 @@ class WorkflowManager:
         # Keep a record of times and timestamps
         self.times = {}
         self.timestamps = {}
+
+        # Metrics for the workflow
+        self.metrics = WorkflowMetrics()
+        self.workflow_metrics = workflow_metrics or ["duration", "failed", "succeed"]
 
         if not filesystem:
             self.init_registry(registry, plain_http)
@@ -260,17 +266,29 @@ class WorkflowManager:
             LOGGER.info(
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
-            self.add_timestamp("workflow_complete")
+            self.complete_workflow()
 
-            # Stop the watcher and save output
-            self.watcher.stop()
-            self.watcher.save(self.save_dir)
+    def complete_workflow(self):
+        """
+        Complete the workflow.
 
-            self.save_times()
+        Can trigger at the actual end, or if issued by an action
+        """
+        self.add_timestamp("workflow_complete")
 
-            # For extra files to write
-            time.sleep(5)
-            sys.exit(0)
+        # Stop the watcher and save output
+        self.watcher.stop()
+        self.watcher.save(self.save_dir)
+
+        self.save_times()
+
+        # Print final model metrics
+        # TODO we might want to keep a record of actions taken?
+        self.metrics.summarize_all()
+
+        # For extra files to write
+        time.sleep(5)
+        sys.exit(0)
 
     @property
     def save_dir(self):
@@ -404,9 +422,84 @@ class WorkflowManager:
         self.add_timestamp(f"{job.label}_succeeded")
         LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
         state_machine.mark_succeeded(job)
+        self.update_metrics(job)
         # Only change if we aren't complete
         if state_machine.current_state.id != "complete":
             state_machine.change()
+
+    def fail_job(self, job, state_machine):
+        """
+        Fail the state machine based on job outcome.
+        """
+        self.add_timestamp(f"{job.label}_failed")
+        LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
+        # Marking a job failed deletes all Kubernetes objects associated across stages.
+        # We do this because we assume no step should be retried, etc.
+        state_machine.mark_failed(job)
+        # If we get here, the job has already done retries for the step
+        # We need to cancel the state machine (all associated jobs)
+        state_machine.cleanup()
+        # Deleting the state machine means we stop tracking it
+        if job.jobid in self.trackers:
+            del self.trackers[job.jobid]
+        self.update_metrics(job)
+
+    def check_metrics(self, job):
+        """
+        Check metrics against workflow specified.
+        """
+        # The self.workflow.rules has indices that correspond to metrics lookup
+        for metric, triggers in self.workflow.rules.items():
+            model_name, step_name, key = metric.split(".")
+            if job.step_name != step_name:
+                continue
+
+            # Is the metric known to us?
+            if model_name not in self.metrics.models:
+                print(f"Warning, model metric {model_name} is not known")
+                continue
+
+            # This is a specific river streaming ML model
+            model = self.metrics.models[model_name]
+
+            # Perform actions
+            for trigger in triggers:
+                # Lookup a metric value by the job stay and name. E.g,.
+                # count.job_a.failed
+                try:
+                    value = model[step_name][key].get()
+                except KeyError:
+                    continue
+
+                # And check against the condition
+                if trigger.should_trigger(value):
+                    self.trigger_workflow_action(trigger.action.name)
+
+    def trigger_workflow_action(self, action_name):
+        """
+        Given an action name, issue it for the workflow
+        """
+        if action_name == "finish-workflow":
+            # TODO: add more detail in calling function to event trigger
+            LOGGER.info("Workflow completion triggered, ending workflow.")
+            self.complete_workflow()
+
+        # TODO add support for grow, shrink
+
+    def update_metrics(self, job):
+        """
+        Update global metrics given a job completion (success or failure)
+        """
+        # Counter of successful and failed jobs
+        if job.is_failed():
+            self.metrics.increment_counter("failure", step=job.step_name)
+        elif job.is_succeeded():
+            self.metrics.increment_counter("success", step=job.step_name)
+
+        # Add job duration if supported by tracker
+        duration = job.duration()
+        if job.is_completed() and duration is not None:
+            self.metrics.add_model_entry("duration", duration)
 
     def add_timestamp_first_seen(self, label):
         """
@@ -452,20 +545,15 @@ class WorkflowManager:
 
             # The job just completed and failed, clean up.
             if job.is_failed():
-                self.add_timestamp(f"{job.label}_failed")
-                LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
-                # Marking a job failed deletes all Kubernetes objects associated across stages.
-                # We do this because we assume no step should be retried, etc.
-                state_machine.mark_failed(job)
-                # If we get here, the job has already done retries for the step
-                # We need to cancel the state machine (all associated jobs)
-                state_machine.cleanup()
-                # Deleting the state machine means we stop tracking it
-                if job.jobid in self.trackers:
-                    del self.trackers[job.jobid]
+                self.fail_job(job, state_machine)
 
             # Check if the workflow is complete
             self.check_complete()
+
+            # Check metrics for any actions to take
+            # Since a specific job will just change, we check
+            # for specific steps oriented to a job
+            self.check_metrics(job)
 
             # Check to see if we should submit new jobs
             self.new_jobs()

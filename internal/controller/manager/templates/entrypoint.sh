@@ -8,7 +8,12 @@ cp -R /state_machine_operator /opt/jobs
 cat <<EOF > /opt/jobs/state-machine-workflow.yaml
 workflow:
   completed: {{ .Spec.Workflow.Completed }}
-  {{ if .Spec.Workflow.Prefix }}prefix: {{ .Spec.Workflow.Prefix }}{{ end }}
+  {{ if .Spec.Workflow.Prefix }}prefix: {{ .Spec.Workflow.Prefix }}{{ end }}{{ if .Spec.Workflow.Events }}
+  events: {{ range .Spec.Workflow.Events }}
+    - action: {{ .Action }}
+      when: "{{ if .When }}{{ .When }}{{ else }}> 0{{ end }}"
+      metric: {{ .Metric }}
+{{ end }}{{ end }}
 cluster:
   max_size: {{ .Spec.Cluster.MaxSize }}
   autoscale: {{ .Spec.Cluster.Autoscale }}
