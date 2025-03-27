@@ -9,6 +9,9 @@ def load(name):
     need / want to import the scheduler-specific libraries.
     """
     tracker = None
+    if name not in defaults.supported_schedulers:
+        raise ValueError(f"{name} is not valid, please choose from {defaults.supported_schedulers}")
+
     name = name.lower()
     if name == "kubernetes":
         import state_machine_operator.tracker.kubernetes as tracker

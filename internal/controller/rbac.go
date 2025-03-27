@@ -115,8 +115,14 @@ func (r *StateMachineReconciler) createRole(
 				Resources: []string{"pods", "pods/log", "jobs", "configmaps", "jobs/status"},
 				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
 			},
+			{
+				APIGroups: []string{"", "flux-framework.org"},
+				Resources: []string{"miniclusters"},
+				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+			},
 		},
 	}
+
 	ctrl.SetControllerReference(spec, role, r.Scheme)
 	err := r.Create(ctx, role)
 	return role, err

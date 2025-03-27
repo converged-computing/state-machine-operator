@@ -5,14 +5,8 @@ metadata:
 spec:
   manager:
     pullPolicy: Never
-
   workflow:
     completed: 10
-    events:
-      # When more than half of job b's fail, finish the entire workflow
-      - metric: count.job_b.failure
-        when: ">= 5"
-        action: finish-workflow
 
   cluster:
     maxSize: 2
@@ -28,12 +22,13 @@ spec:
   # Note that this step always fails and we never make it to C
   # This should end the workflow early
   - name: job_b
+    properties: 
+      minicluster: "yes"
     config:
-      nodes: 1
+      nodes: 4
       coresPerTask: 1
     image: rockylinux:9
-    # That is always going to fail!
-    script: exit 1
+    script: echo "hello"
 
   - name: job_c
     config:

@@ -33,7 +33,6 @@ class WorkflowManager:
         registry=None,
         plain_http=False,
         quiet=False,
-        workflow_metrics=None,
     ):
         """
         Initialize the WorkflowManager. Much of this logic used to be in setup,
@@ -62,25 +61,26 @@ class WorkflowManager:
 
         # Metrics for the workflow
         self.metrics = WorkflowMetrics()
-        self.workflow_metrics = workflow_metrics or ["duration", "failed", "succeed"]
+        self.init_storage(registry, plain_http, filesystem)
 
+        # Prepare tracker, an event driven workload manager
+        self.setup_tracker()
+
+    def init_storage(self, registry, plain_http, filesystem):
+        """
+        Initialize OCI registry or filesystem
+        """
         if not filesystem:
             self.init_registry(registry, plain_http)
             LOGGER.info(f"   Registry: [{self.registry}]")
         else:
             # We want a filesystem but need to create a temporary location
             if not self.workflow.filesystem:
+
+                # HPC clusters should be careful if /tmp is not shared
                 filesystem = self.workflow.workdir or tempfile.mkdtemp()
                 self.workflow.set_filesystem(filesystem)
             LOGGER.info(f"   Filesystem: [{filesystem}]")
-
-        if self.scheduler not in defaults.supported_schedulers:
-            raise ValueError(
-                f"{self.scheduler} is not valid, please choose from {defaults.supported_schedulers}"
-            )
-
-        # Prepare tracker, an event driven workload manager
-        self.setup_tracker()
 
     def setup_tracker(self):
         """
@@ -111,6 +111,7 @@ class WorkflowManager:
         """
         number = random.choice(range(0, 99999999))
         jobid = self.prefix + str(number).zfill(9)
+
         # This is hugely unlikely to happen, but you never know!
         if jobid in self.trackers:
             return self.generate_id()
@@ -279,11 +280,9 @@ class WorkflowManager:
         # Stop the watcher and save output
         self.watcher.stop()
         self.watcher.save(self.save_dir)
-
         self.save_times()
 
         # Print final model metrics
-        # TODO we might want to keep a record of actions taken?
         self.metrics.summarize_all()
 
         # For extra files to write
@@ -336,9 +335,7 @@ class WorkflowManager:
         # submit_n negative would be OK, a 0-> negative range is empty
         submit_n = max(submit_n, 0)
 
-        logfn = LOGGER.info
-        if self.quiet:
-            logfn = LOGGER.debug
+        logfn = LOGGER.debug if self.quiet else LOGGER.info
 
         logfn(f"\n> 🌀 Starting step {step['name']}")
         logfn("> Workflow needs")
@@ -355,7 +352,6 @@ class WorkflowManager:
         logfn(f"  > New job sequences submit    {submit_n} ")
 
         # If submit is > than completions needed, we don't need that many
-        # TODO we would also downscale the cluster here
         submit_n = min(jobs_needed, submit_n)
         for _ in range(0, submit_n):
             jobid = self.generate_id()

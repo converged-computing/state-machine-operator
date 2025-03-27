@@ -175,7 +175,7 @@ class BaseTracker:
 
     def submit_job(self, jobid):
         """
-        Submit a job to Flux
+        Submit a job to a tracker adapter.
         """
         step = self.create_step(jobid)
         LOGGER.debug(f"[{self.type}] submitting job {jobid}")
