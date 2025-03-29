@@ -48,10 +48,3 @@ class BaseJob:
         Get the job duration, if supported
         """
         pass
-
-    def state(self):
-        """
-        Get the job current or final state.
-        Right now we will just support failure, success
-        """
-        pass

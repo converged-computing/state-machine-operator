@@ -113,11 +113,16 @@ func (r *StateMachineReconciler) createRole(
 			{
 				APIGroups: []string{"", "batch"},
 				Resources: []string{"pods", "pods/log", "jobs", "configmaps", "jobs/status"},
-				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch", "update"},
 			},
 			{
 				APIGroups: []string{"", "flux-framework.org"},
 				Resources: []string{"miniclusters"},
+				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+			},
+			{
+				APIGroups: []string{"", "events.k8s.io"},
+				Resources: []string{"events"},
 				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
 			},
 		},

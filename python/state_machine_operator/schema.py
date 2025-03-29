@@ -77,6 +77,7 @@ state_machine_config_schema = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
+                    "events": {"type": "object"},
                 },
                 "required": ["config"],
             },

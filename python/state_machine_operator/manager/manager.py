@@ -413,12 +413,11 @@ class WorkflowManager:
 
     def succeed_job(self, job, state_machine):
         """
-        A state machine can succeed if it exits with 0 or is marked to always succeed
+        A state machine can succeed if it exits with 0 or is marked to always succeed.
         """
         self.add_timestamp(f"{job.label}_succeeded")
         LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
         state_machine.mark_succeeded(job)
-        self.update_metrics(job)
         # Only change if we aren't complete
         if state_machine.current_state.id != "complete":
             state_machine.change()
@@ -435,10 +434,10 @@ class WorkflowManager:
         # If we get here, the job has already done retries for the step
         # We need to cancel the state machine (all associated jobs)
         state_machine.cleanup()
+
         # Deleting the state machine means we stop tracking it
         if job.jobid in self.trackers:
             del self.trackers[job.jobid]
-        self.update_metrics(job)
 
     def check_metrics(self, job):
         """
@@ -530,7 +529,7 @@ class WorkflowManager:
         if trigger.action.name == "shrink":
             self.trigger_shrink(trigger, step_name, value)
 
-    def update_metrics(self, job):
+    def update_metrics(self, job, state_machine):
         """
         Update global metrics given a job completion (success or failure)
         """
@@ -544,6 +543,22 @@ class WorkflowManager:
         duration = job.duration()
         if job.is_completed() and duration is not None:
             self.metrics.add_model_entry("duration", duration, step=job.step_name)
+
+        # Load custom metrics from the tracker
+        self.load_custom_metrics(state_machine)
+
+    def load_custom_metrics(self, state_machine):
+        """
+        Custom metrics are created as events and received here.
+        """
+        # This takes the current step
+        # {"job_name": job_name, "step_name": pod.metadata.labels["app"], "metrics": events}
+        for message in state_machine.metrics():
+            try:
+                m = json.loads(message)
+                self.metrics.add_custom_metric(m["metrics"], m["job_name"], m["step_name"])
+            except Exception as e:
+                print(f"Issue parsing custom metric {message}: {e}")
 
     def add_timestamp_first_seen(self, label):
         """
@@ -578,6 +593,9 @@ class WorkflowManager:
             # This status will trigger when it's created (after submit)
             if job.is_active() and not job.is_completed():
                 continue
+
+            # Update metrics. This needs to happen before the job changes state
+            self.update_metrics(job, state_machine)
 
             # This is a case where the job failed, but we allow failure and keep going
             if job.is_failed() and job.always_succeed:

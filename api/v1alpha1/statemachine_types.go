@@ -99,6 +99,12 @@ type WorkflowEvent struct {
 // to the job (not knowing the structure in advance)
 type JobSequence []JobStep
 
+type JobEvents struct {
+
+	// Custom parsing script
+	Script string `json:"script,omitempty"`
+}
+
 type JobStep struct {
 
 	// Name is the name of the job (required)
@@ -111,6 +117,10 @@ type JobStep struct {
 	// Configuration for the job registry
 	// +optional
 	Registry RegistryConfig `json:"registry,omitempty"`
+
+	// Event for a job
+	// +optional
+	Events JobEvents `json:"events,omitempty"`
 
 	// Architecture (arm64 or amd64)
 	// +kubebuilder:default="amd64"
@@ -234,6 +244,10 @@ type Manager struct {
 	// container image for the workflow manager (must be provided)
 	// +omitempty
 	NodeSelector string `json:"nodeSelector,omitempty"`
+
+	// Run in more verbose mode
+	// +optional
+	Verbose bool `json:"verbose"`
 
 	// Image pull policy (e.g., Always, Never, etc.)
 	// +kubebuilder:default="IfNotPresent"

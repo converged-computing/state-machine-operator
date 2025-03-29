@@ -61,13 +61,3 @@ class Job(BaseJob):
         if self.job.status.completion_time is None or self.job.status.start_time is None:
             return
         return (self.job.status.completion_time - self.job.status.start_time).total_seconds()
-
-
-def get_namespace():
-    """
-    Get the current namespace the workflow manager is running in.
-    """
-    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-    if os.path.exists(ns_path):
-        with open(ns_path) as f:
-            return f.read().strip()

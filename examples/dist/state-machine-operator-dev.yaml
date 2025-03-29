@@ -113,6 +113,13 @@ spec:
                           description: Walltime (in string format) for the job
                           type: string
                       type: object
+                    events:
+                      description: Event for a job
+                      properties:
+                        script:
+                          description: Custom parsing script
+                          type: string
+                      type: object
                     image:
                       description: |-
                         Namespace is inherited from StateMachine Spec
@@ -193,6 +200,9 @@ spec:
                     default: r
                     description: Subdomain to use
                     type: string
+                  verbose:
+                    description: Run in more verbose mode
+                    type: boolean
                 type: object
               registry:
                 description: |-
@@ -363,6 +373,10 @@ rules:
   - events
   verbs:
   - create
+  - delete
+  - get
+  - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -673,6 +687,18 @@ rules:
   - ""
   resources:
   - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
   verbs:
   - create
   - delete

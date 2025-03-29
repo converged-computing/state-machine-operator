@@ -7,9 +7,11 @@ from logging import getLogger
 
 from kubernetes import client, config, watch
 
+import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 
-from .job import Job, get_namespace
+from .job import Job
+from .utils import get_namespace
 
 LOGGER = getLogger(__name__)
 
@@ -26,7 +28,13 @@ def stream_events():
     w = watch.Watch()
     for event in w.stream(batch_v1.list_namespaced_job, namespace=get_namespace()):
         job = event["object"]
-        yield Job(job)
+        event = Job(job)
+
+        # This is a job updated with annotated metrics to inform the manager
+        if job.metadata.annotations and defaults.metrics_key in job.metadata.annotations:
+            event._is_event = True
+
+        yield event
 
 
 class Watcher:
@@ -45,6 +53,9 @@ class Watcher:
         self.nodes = {}
         self.pods = {}
 
+        # The metrics watcher will append metrics to this queue.
+        self.metrics = []
+
     def results(self):
         return {"nodes": self.nodes}
 
@@ -56,7 +67,7 @@ class Watcher:
         """
         Prepare watchers for pods and nodes.
         """
-        for function in ["watch_nodes"]:
+        for function in ["watch_nodes", "receive_metrics"]:
             thread = threading.Thread(target=getattr(self, function))
             thread.daemon = True
             self.threads[function] = thread
@@ -137,6 +148,18 @@ class Watcher:
         if self.nodes[node.metadata.name]["is_ready"] != ready["status"]:
             self.nodes[node.metadata.name]["conditions"].append(ready)
             self.nodes[node.metadata.name]["is_ready"] = ready["status"]
+
+    def receive_metrics(self):
+        """
+        Receive metric events and pass to the manager.
+        """
+        v1 = client.CoreV1Api()
+        w = watch.Watch()
+        for event in w.stream(v1.list_namespaced_event, namespace=get_namespace()):
+            e = event["object"]
+            if e.reason == "CustomMetric":
+                # The message has the metric, the job name, and step name
+                self.metrics.append(e.message)
 
     def watch_nodes(self):
         """

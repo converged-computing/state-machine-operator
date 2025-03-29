@@ -1,0 +1,53 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+    interactive: true
+  workflow:
+    completed: 10
+
+    events:
+      # Two studies:
+      # If lammps runtime is > 3:00 add a node (do with autoscaler)
+      # what is the base case
+      - metric: mean.lammps.duration
+        when: ">= 360"
+        action: grow
+        repetitions: 3
+        # Require checks between before doing again
+        # TODO check if this is working correctly.
+        # also check the .get()
+        backoff: 3
+        maxSize: 10
+
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is a setup for lammps
+
+  # Note that this step always fails and we never make it to C
+  # This should end the workflow early
+  - name: lammps
+    properties:
+      minicluster: "yes"
+    config:
+      nodes: 4
+    image: ghcr.io/converged-computing/metric-lammps-cpu:zen4
+    workdir: /opt/lammps/examples/reaxff/HNS/
+    script: lmp -v x 4 -v y 4 -v z 4 -in ./in.reaxff.hns -nocite
+
+  - name: job_c
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the third

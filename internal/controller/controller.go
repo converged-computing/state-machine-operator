@@ -91,6 +91,8 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=core,resources=batch,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=core,resources=networks,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch;delete
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="rolebindings",verbs=get;list;watch;create;update;patch;delete

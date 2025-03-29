@@ -19,6 +19,13 @@ class Job:
         self.job_desc = job_desc
         self.workflow = workflow
 
+        # Remove the module from the job descr
+        # TODO check if this was deleted and only working once?
+        self.module = None
+        if "module" in self.job_desc.get("events", {}):
+            self.module = self.job_desc["events"]["module"]
+            del self.job_desc["events"]["module"]
+
         # Allow for arbitrary extra key value arguments
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -69,6 +76,9 @@ class BaseTracker:
         # This is the workflow with rules for scaling, etc.
         self.workflow = workflow
         self.check_resources()
+
+        # We retrieve custom metrics from the log and deliver to the manager
+        self.metrics = []
 
         # TODO this envrionment variable has the max nodes we will allow to autoscale to
         # We can use this later...

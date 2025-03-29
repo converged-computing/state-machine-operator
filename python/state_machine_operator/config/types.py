@@ -81,13 +81,6 @@ class Rule:
         if self.action.name not in defaults.workflow_actions:
             raise ValueError(f"Event has invalid action name {self.action.name}")
 
-        # TODO: can also validate step names
-        model_name, step_name, workflow_event = self.action.metric.split(".")
-
-        # We currently supported failure, success, and duration
-        if workflow_event not in defaults.workflow_events:
-            raise ValueError(f"Event has invalid workflow event {self.action.name}")
-
         # Ensure we have a valid number or inequality
         self.check_when()
 

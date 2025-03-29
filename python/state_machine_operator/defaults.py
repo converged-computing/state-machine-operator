@@ -9,6 +9,9 @@ workdir = "/tmp/out"
 workflow_actions = ["grow", "shrink", "finish-workflow"]
 workflow_events = ["failure", "success", "duration"]
 
+# Custom metrics annotation
+metrics_key = "state-machine-metrics"
+
 # Prefix for job names
 prefix = "job_"
 supported_schedulers = [scheduler, "flux"]

@@ -41,11 +41,11 @@ class WorkflowMetrics:
                 if step_name not in items[model_name]:
                     items[model_name][step_name] = {}
                 for key, model in keys.items():
-                    items[model_name][step_name] = round(model.get(), 3)
+                    items[model_name][step_name][key] = round(model.get(), 3)
         print(json.dumps(items))
         return items
 
-    def increment_counter(self, key, step=None):
+    def increment_counter(self, key, step=None, by=1):
         """
         Increment the count of a metric.
 
@@ -58,7 +58,20 @@ class WorkflowMetrics:
             self.models["count"][step] = {}
         if key not in self.models["count"][step]:
             self.models["count"][step][key] = stats.Count()
-        self.models["count"][step][key].update()
+        self.models["count"][step][key].update(by)
+
+    def add_custom_metric(self, metrics, job_name, step_name):
+        """
+        A custom metric is delivered to a job via an update, and an
+        annotation is added.
+        """
+        print(f"Adding custom metrics for {job_name}")
+
+        # This adds variance, mean, max, min, iqr, and mad
+        for metric_name, metric_value in metrics.items():
+            self.add_model_entry(metric_name, metric_value, step=step_name)
+            # Assume it could also be countable
+            self.increment_counter(metric_name, step=step_name, by=metric_value)
 
     def add_model_entry(self, key, value, step=None, model_name=None):
         """

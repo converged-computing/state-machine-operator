@@ -32,7 +32,7 @@ workflow_config="/opt/jobs/state-machine-workflow.yaml"
 config_dir="/opt/jobs"
 scheduler="kubernetes"
 registry="{{ .StateMachine.RegistryHost }}"
-cmd="state-machine-manager start ${workflow_config} --config-dir=${config_dir} --scheduler ${scheduler} --registry ${registry} {{ if .Spec.Registry.PlainHttp }}--plain-http{{ end }}"
+cmd="state-machine-manager start ${workflow_config} --config-dir=${config_dir} {{ if .Spec.Manager.Verbose }}{{ else }}--quiet{{ end }} --scheduler ${scheduler} --registry ${registry} {{ if .Spec.Registry.PlainHttp }}--plain-http{{ end }}"
 
 # Trigger interactive mode here so we have files staged above
 echo "$cmd"

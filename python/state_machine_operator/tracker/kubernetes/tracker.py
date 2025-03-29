@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import shlex
@@ -5,6 +6,7 @@ from logging import getLogger
 
 from jinja2 import Template
 from kubernetes import client, config
+from .utils import get_manager_pod
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
@@ -44,6 +46,7 @@ class KubernetesJob(Job):
         This includes the entrypoint, along with the entire
         script (config) that is provided for the app to use.
         """
+        # Remove events (and a module) from the job description
         config = json.dumps(self.job_desc, indent=4)
         app_config = self.job_desc.get("app-config") or ""
         cm = client.V1ConfigMap(
@@ -165,6 +168,7 @@ class KubernetesJob(Job):
             ],
             env=self.extra_environment,
             resources=resources,
+            working_dir=step.workdir,
         )
 
         # Prepare volumes (with config map)
@@ -309,6 +313,7 @@ class KubernetesJob(Job):
         container = {
             "command": " ".join(self.command),
             "image": self.job_desc["image"],
+            "workingDir": step.workdir,
             "name": container_name,
             "pullAlways": pull_always,
             "volumes": {
@@ -384,6 +389,27 @@ class KubernetesJob(Job):
 
         return JobSubmission(submit_status, retcode)
 
+    def get_metric_events(self, pod, log):
+        """
+        Send metric events to the manager. These events go to a custom watcher.
+        """
+        # Cut out early if no special event parsing
+        if not self.module:
+            print(f"There is no module defined for {self.job_desc['name']}")
+            return
+
+        try:
+            events = self.module.parse_log(log)
+        except Exception as e:
+            print(f"Error parsing custom metric for {pod.metadata.name}: {e}")
+            return
+        
+        # Metadata about the Job to associate to
+        job_name = pod.metadata.labels["job-name"]
+
+        # In the message we send the metrics, job name, and step name
+        return {"job_name": job_name, "step_name": self.job_desc["name"], "metrics": events}
+
     def cancel_jobs(self, joblist):
         """
         For the given job list, cancel each job. This is not currently use,
@@ -439,7 +465,8 @@ class KubernetesTracker(BaseTracker):
         """
         Save a log identifier for a finished pod (job)
         """
-        if not self.save_path or not Job:
+        # No job, no purpose to save
+        if not Job:
             return
         api = client.CoreV1Api()
 
@@ -450,21 +477,33 @@ class KubernetesTracker(BaseTracker):
         ).items
 
         # Create the save path
-        logs_path = os.path.join(self.save_path, "logs")
-        if not os.path.exists(logs_path):
-            os.makedirs(logs_path)
+        if self.save_path:
+            logs_path = os.path.join(self.save_path, "logs")
+            if not os.path.exists(logs_path):
+                os.makedirs(logs_path)
 
-        # We might have one pod, but can't assume
+        # We might have one pod, but can't assume.
+        # For metrics, we assume logs coming from main (index 0) pod
+        # This can change if needed
         for i, pod in enumerate(pods):
             print(f"Saving log for {pod.metadata.name}")
             try:
-                logs = api.read_namespaced_pod_log(
+                log = api.read_namespaced_pod_log(
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
-                    container=container_name,
                     follow=False,
                     timestamps=True,
                 )
+                if i == 0:
+                    # We assume lead pod (index 0) is of interest
+                    metrics = self.adapter.get_metric_events(pod, log)
+                    if metrics:
+                        self.metrics.append(metrics)
+
+                # If we have metrics to send, send them for the manager to receive
+                if not self.save_path:
+                    continue
+
                 log_file = os.path.join(
                     logs_path,
                     f"{job.job.metadata.labels['app']}-{job.job.metadata.labels['jobid']}-{i}.out",
@@ -472,7 +511,7 @@ class KubernetesTracker(BaseTracker):
                 # Don't write twice
                 if not os.path.exists(log_file):
                     print(f"Saving log file {log_file}")
-                    utils.write_file(logs, log_file)
+                    utils.write_file(log, log_file)
                 else:
                     print(f"Log file {log_file} already exists")
 
@@ -485,15 +524,17 @@ class KubernetesTracker(BaseTracker):
         Create job parameters for a Kubernetes Job CRD
         """
         LOGGER.debug(f"[{self.type}] jobid = {jobid}")
+
+        # Working directory is created and cd'd to
+        workdir = self.job_desc.get("workdir") or defaults.workdir
+
         step = JobSetup(
             name=jobid.lower().replace("_", "-"),
             nodes=self.nnodes,
             cores_per_task=self.ncores,
             gpus=self.ngpus,
+            workdir=workdir,
         )
-
-        # Working directory is created and cd'd to
-        workdir = self.job_desc.get("workdir") or defaults.workdir
 
         if "script" in self.job_desc:
             # This allows the script to be able to handle one or more jobid

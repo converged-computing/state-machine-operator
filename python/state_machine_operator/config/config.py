@@ -1,4 +1,6 @@
+import importlib
 import os
+import shutil
 import sys
 
 import jsonschema
@@ -69,7 +71,6 @@ class WorkflowConfig:
         """
         Load and validate workflow
         """
-        # TODO: support for custom actions or events?
         events = self.cfg["workflow"].get("events")
         self.rules = {}
         if not events:
@@ -176,7 +177,32 @@ class WorkflowConfig:
             # the name with the order.
             job_config["name"] = job["name"]
             job["config"]["name"] = job["name"]
+
+            # Parse custom event functions on job
+            self.add_custom_events(job)
             self.jobs[job["name"]] = job
+
+    def add_custom_events(self, job):
+        """
+        Add (parse) custom job events.
+        """
+        tmpdir = utils.get_tmpdir()
+        script_path = os.path.join(tmpdir, job["name"] + ".py")
+
+        # Parse custom job functions.
+        event = job.get("events") or {}
+        script = event.get("script")
+        if not script:
+            return
+
+        utils.write_file(script, script_path)
+
+        # module will have custom functions
+        spec = importlib.util.spec_from_file_location(job["name"], script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        job["events"]["module"] = module
+        shutil.rmtree(tmpdir)
 
     def validate(self):
         jsonschema.validate(self.cfg, schema=schema.state_machine_config_schema)
