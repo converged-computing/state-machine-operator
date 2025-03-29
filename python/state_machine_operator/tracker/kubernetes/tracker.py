@@ -6,7 +6,6 @@ from logging import getLogger
 
 from jinja2 import Template
 from kubernetes import client, config
-from .utils import get_manager_pod
 
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
@@ -403,12 +402,48 @@ class KubernetesJob(Job):
         except Exception as e:
             print(f"Error parsing custom metric for {pod.metadata.name}: {e}")
             return
-        
+
         # Metadata about the Job to associate to
         job_name = pod.metadata.labels["job-name"]
 
         # In the message we send the metrics, job name, and step name
         return {"job_name": job_name, "step_name": self.job_desc["name"], "metrics": events}
+
+    def send_kubernetes_event(self, pod, metrics):
+        """
+        Send a kubernetes event instead of metrics via the state machine.
+
+        This function is currently not used.
+        """
+        v1 = client.CoreV1Api()
+        now = datetime.datetime.utcnow()
+        job_name = pod.metadata.labels["job-name"]
+        job_uid = pod.metadata.labels["controller-uid"]
+
+        event = client.CoreV1Event(
+            metadata=client.V1ObjectMeta(
+                generate_name=job_name,
+            ),
+            involved_object=client.V1ObjectReference(
+                kind="Job",
+                api_version="batch/v1",
+                namespace=pod.metadata.namespace,
+                name=job_name,
+                uid=job_uid,
+            ),
+            reason="CustomMetric",
+            message=json.dumps(metrics),
+            first_timestamp=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            last_timestamp=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            type="Normal",
+            source=client.V1EventSource(component="state-machine"),
+        )
+
+        try:
+            v1.create_namespaced_event(pod.metadata.namespace, event)
+        except Exception as e:
+            print(f"Error creating event: {e}")
+        return metrics
 
     def cancel_jobs(self, joblist):
         """
@@ -466,7 +501,7 @@ class KubernetesTracker(BaseTracker):
         Save a log identifier for a finished pod (job)
         """
         # No job, no purpose to save
-        if not Job:
+        if not job:
             return
         api = client.CoreV1Api()
 
@@ -486,7 +521,6 @@ class KubernetesTracker(BaseTracker):
         # For metrics, we assume logs coming from main (index 0) pod
         # This can change if needed
         for i, pod in enumerate(pods):
-            print(f"Saving log for {pod.metadata.name}")
             try:
                 log = api.read_namespaced_pod_log(
                     name=pod.metadata.name,
@@ -495,6 +529,8 @@ class KubernetesTracker(BaseTracker):
                     timestamps=True,
                 )
                 if i == 0:
+                    print(f"Saving log for {pod.metadata.name}")
+
                     # We assume lead pod (index 0) is of interest
                     metrics = self.adapter.get_metric_events(pod, log)
                     if metrics:

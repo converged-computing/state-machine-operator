@@ -1,6 +1,7 @@
+import os
 
 from kubernetes import client
-import os
+
 
 def get_namespace():
     """
@@ -10,7 +11,8 @@ def get_namespace():
     if os.path.exists(ns_path):
         with open(ns_path) as f:
             return f.read().strip()
-    
+
+
 def get_manager_pod():
     """
     Get the currently running manager pod.
@@ -22,4 +24,3 @@ def get_manager_pod():
     pods = v1.list_namespaced_pod(namespace=get_namespace(), label_selector=label_selector)
     assert len(pods.items) == 1
     return pods.items[0]
-

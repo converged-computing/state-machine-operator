@@ -157,14 +157,15 @@ def on_change(self):
     tracker = self.trackers[self.current_state.id]
     tracker.submit_job(self.jobid)
 
+
 def metrics(self):
     """
     Yield (pop) current metrics.
     """
-    tracker = self.trackers[self.current_state.id]
-    while tracker.metrics:
-        yield tracker.metrics.pop(0)
-    
+    for step_name, step in self.trackers.items():
+        while step.metrics:
+            yield step.metrics.pop(0)
+
 
 def cleanup(self):
     """

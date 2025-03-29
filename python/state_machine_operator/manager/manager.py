@@ -553,12 +553,12 @@ class WorkflowManager:
         """
         # This takes the current step
         # {"job_name": job_name, "step_name": pod.metadata.labels["app"], "metrics": events}
-        for message in state_machine.metrics():
+        for m in state_machine.metrics():
+            print(f"Loading custom metric {m}")
             try:
-                m = json.loads(message)
                 self.metrics.add_custom_metric(m["metrics"], m["job_name"], m["step_name"])
             except Exception as e:
-                print(f"Issue parsing custom metric {message}: {e}")
+                print(f"Issue parsing custom metric {m}: {e}")
 
     def add_timestamp_first_seen(self, label):
         """

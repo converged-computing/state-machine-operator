@@ -7,7 +7,6 @@ from logging import getLogger
 
 from kubernetes import client, config, watch
 
-import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 
 from .job import Job
@@ -29,11 +28,6 @@ def stream_events():
     for event in w.stream(batch_v1.list_namespaced_job, namespace=get_namespace()):
         job = event["object"]
         event = Job(job)
-
-        # This is a job updated with annotated metrics to inform the manager
-        if job.metadata.annotations and defaults.metrics_key in job.metadata.annotations:
-            event._is_event = True
-
         yield event
 
 
@@ -67,7 +61,7 @@ class Watcher:
         """
         Prepare watchers for pods and nodes.
         """
-        for function in ["watch_nodes", "receive_metrics"]:
+        for function in ["watch_nodes"]:
             thread = threading.Thread(target=getattr(self, function))
             thread.daemon = True
             self.threads[function] = thread
@@ -158,6 +152,7 @@ class Watcher:
         for event in w.stream(v1.list_namespaced_event, namespace=get_namespace()):
             e = event["object"]
             if e.reason == "CustomMetric":
+                print(f"Found custom metric event {e.message}")
                 # The message has the metric, the job name, and step name
                 self.metrics.append(e.message)
 

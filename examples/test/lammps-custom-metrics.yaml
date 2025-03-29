@@ -5,22 +5,17 @@ metadata:
 spec:
   manager:
     pullPolicy: Never
-    interactive: true
   workflow:
     completed: 10
-
     events:
-      # Custom metric - derived from parsing lammps log
+       # Custom metric - derived from parsing lammps log
+        # Max decreases down to 1 (default), with 3 breaks in between, and 3 times
       - metric: mean.lammps.lammps-walltime
-        when: ">= 12"
-        action: grow
-        # Size 4 cluster, max decreases down to 1
+        when: "<= 10"
+        action: shrink
         repetitions: 3
-        # Require checks between before doing again
-        # TODO check if this is working correctly.
-        # also check the .get()
         backoff: 3
-        maxSize: 10
+        minSize: 1
 
   cluster:
     maxSize: 2

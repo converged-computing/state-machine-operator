@@ -1,5 +1,3 @@
-import os
-
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 from state_machine_operator.tracker.job import BaseJob
