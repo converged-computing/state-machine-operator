@@ -158,6 +158,15 @@ def on_change(self):
     tracker.submit_job(self.jobid)
 
 
+def metrics(self):
+    """
+    Yield (pop) current metrics.
+    """
+    for step_name, step in self.trackers.items():
+        while step.metrics:
+            yield step.metrics.pop(0)
+
+
 def cleanup(self):
     """
     Cleanup an entire state machine, meaning all jobs.
@@ -199,6 +208,7 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
         "init_trackers": init_trackers,
         "workflow": config,
         "cleanup": cleanup,
+        "metrics": metrics,
         "tracker": tracker.load(tracker_type),
         "next_step_config": next_step_config,
     }

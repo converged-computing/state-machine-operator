@@ -1,6 +1,8 @@
+import importlib
 import json
 import logging
 import os
+import shutil
 
 import state_machine_operator.utils as utils
 from state_machine_operator.tracker.types import SubmissionCode
@@ -16,8 +18,12 @@ class Job:
     """
 
     def __init__(self, job_desc, workflow, **kwargs):
+        # The copy is important since we modify the dict
         self.job_desc = job_desc
         self.workflow = workflow
+
+        # Load custom module
+        self.load_custom_events()
 
         # Allow for arbitrary extra key value arguments
         for key, value in kwargs.items():
@@ -37,6 +43,29 @@ class Job:
         for key, value in environment.items():
             environ.append({"name": key, "value": value})
         return environ
+
+    def load_custom_events(self):
+        """
+        Add (parse) custom job events.
+        """
+        tmpdir = utils.get_tmpdir()
+        script_path = os.path.join(tmpdir, self.job_desc["name"] + ".py")
+
+        # Parse custom job functions.
+        event = self.job_desc.get("events") or {}
+        script = event.get("script")
+        self.module = None
+        if not script:
+            return
+
+        utils.write_file(script, script_path)
+
+        # module will have custom functions
+        spec = importlib.util.spec_from_file_location(self.job_desc["name"], script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.module = module
+        shutil.rmtree(tmpdir)
 
     @property
     def properties(self):
@@ -70,11 +99,8 @@ class BaseTracker:
         self.workflow = workflow
         self.check_resources()
 
-        # TODO this envrionment variable has the max nodes we will allow to autoscale to
-        # We can use this later...
-        self.max_nodes_autoscale = (
-            os.environ.get("STATE_MACHINE_MAX_NODES", self.total_nodes) or self.total_nodes
-        )
+        # We retrieve custom metrics from the log and deliver to the manager
+        self.metrics = []
 
     @property
     def total_nodes(self):
@@ -175,7 +201,7 @@ class BaseTracker:
 
     def submit_job(self, jobid):
         """
-        Submit a job to Flux
+        Submit a job to a tracker adapter.
         """
         step = self.create_step(jobid)
         LOGGER.debug(f"[{self.type}] submitting job {jobid}")

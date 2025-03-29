@@ -10,6 +10,12 @@ workdir:  {{ if .Job.Workdir }}{{ .Job.Workdir }}{{ else }}/tmp/out{{ end }}
  {{ $key }}: {{ $value }}
 {{ end }}{{ end }}
 
+# Custom events
+{{ if .Job.Events }}events:
+  script: |
+{{ .Job.Events.Script }}
+{{ end }}
+
 {{ if .Job.HasRegistry }}
 registry:
   {{ if .Job.Registry.Push }}push: {{ .Job.Registry.Push }}{{ end }}

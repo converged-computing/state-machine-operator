@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import shlex
@@ -44,6 +45,7 @@ class KubernetesJob(Job):
         This includes the entrypoint, along with the entire
         script (config) that is provided for the app to use.
         """
+        # Remove events (and a module) from the job description
         config = json.dumps(self.job_desc, indent=4)
         app_config = self.job_desc.get("app-config") or ""
         cm = client.V1ConfigMap(
@@ -99,22 +101,10 @@ class KubernetesJob(Job):
             except Exception as e:
                 LOGGER.warning(f"Issue deleting configmap {name}: {e}")
 
-    def get_node_selector(self):
+    def generate_resources(self, step):
         """
-        Node selector is in properties -> node-selector
+        Shared function to generate Job or MiniCluster resources.
         """
-        return self.properties.get("node-selector")
-
-    def generate_batch_job(self, step, jobid):
-        """
-        Generate the job CRD assuming the config map entrypoint.
-        """
-        step_name = self.job_desc["name"]
-        # Underscores are not allowed
-        job_name = (f"{step_name}-{step.name}").replace("_", "-")
-        walltime = convert_walltime_to_seconds(step.walltime or 0)
-        metadata = client.V1ObjectMeta(name=job_name)
-
         # Command should just execute entrypoint - keep it simple for now
         ncores = (step.cores_per_task or 1) * step.nodes
 
@@ -135,13 +125,31 @@ class KubernetesJob(Job):
             resources[gpu_label] = step.gpus
 
         # Wrap as requests and limits
-        resources = {"requests": resources, "limits": resources}
+        return {"requests": resources, "limits": resources}
 
-        # Container image pull policy
-        pull_policy = self.config.get("pull_policy", "IfNotPresent")
+    def get_node_selector(self):
+        """
+        Node selector is in properties -> node-selector
+        """
+        return self.properties.get("node-selector")
 
-        # Subdomain for any kubernetes network
-        subdomain = self.config.get("subdomain", "r")
+    def generate_job_name(self, step):
+        """
+        Generate a valid job name.
+        """
+        step_name = self.job_desc["name"]
+
+        # Underscores are not allowed
+        return (f"{step_name}-{step.name}").replace("_", "-")
+
+    def generate_batch_job(self, step, jobid):
+        """
+        Generate the job CRD assuming the config map entrypoint.
+        """
+        job_name = self.generate_job_name(step)
+        walltime = convert_walltime_to_seconds(step.walltime or 0)
+        metadata = client.V1ObjectMeta(name=job_name)
+        resources = self.generate_resources(step)
         command = self.command
 
         # Job container to run the script
@@ -150,7 +158,7 @@ class KubernetesJob(Job):
             name=container_name,
             command=[command[0]],
             args=command[1:],
-            image_pull_policy=pull_policy,
+            image_pull_policy=self.config.get("pull_policy", "IfNotPresent"),
             volume_mounts=[
                 client.V1VolumeMount(
                     mount_path="/workdir",
@@ -159,6 +167,7 @@ class KubernetesJob(Job):
             ],
             env=self.extra_environment,
             resources=resources,
+            working_dir=step.workdir,
         )
 
         # Prepare volumes (with config map)
@@ -189,7 +198,7 @@ class KubernetesJob(Job):
         template = {
             "metadata": {
                 "labels": {
-                    "app": step_name,
+                    "app": self.job_desc["name"],
                     defaults.operator_label: jobid,
                 },
             },
@@ -197,7 +206,7 @@ class KubernetesJob(Job):
                 "containers": [container],
                 "restartPolicy": "Never",
                 "volumes": volumes,
-                "subdomain": subdomain,
+                "subdomain": self.config.get("subdomain", "r"),
             },
         }
 
@@ -211,7 +220,7 @@ class KubernetesJob(Job):
         if node_selector is not None:
             template["spec"]["nodeSelector"] = node_selector
 
-        # Only add walltime if it's > 0 and not None
+        # Walltime will be 0 if unset / to default
         if walltime:
             template["spec"]["activeDeadlineSeconds"] = int(walltime)
 
@@ -249,17 +258,27 @@ class KubernetesJob(Job):
 
     def submit(self, step, jobid):
         """
+        Submit a job, either a standard job or Flux MiniCluster
+        """
+        # Create a config map (mounted read only script for entrypoint)
+        self.create_configmap(step.name, step.script)
+
+        # If MiniCluster specified, they need to install the flux operator
+        if self.properties.get("minicluster") in true_options:
+            return self.submit_minicluster_job(step, jobid)
+
+        # Default to submit a vanilla Kubernetes Job
+        return self.submit_kubernetes_job(step, jobid)
+
+    def submit_kubernetes_job(self, step, jobid):
+        """
         Submit a job to Kubernetes
 
         :param step: The JobSetup data.
         """
-        # Create a config map (mounted read only script to run sim)
-        self.create_configmap(step.name, step.script)
-
         # Generate the kubernetes batch job!
         job = self.generate_batch_job(step, jobid)
         batch_api = client.BatchV1Api()
-
         retcode = -1
         try:
             batch_api.create_namespaced_job(self.namespace, job)
@@ -276,6 +295,155 @@ class KubernetesJob(Job):
                 submit_status = SubmissionCode.ERROR
 
         return JobSubmission(submit_status, retcode)
+
+    def submit_minicluster_job(self, step, jobid):
+        """
+        Submit a minicluster job to Kubernetes
+
+        Since this is part of a state machine, we assume it is
+        a one-off job.
+        """
+        job_name = self.generate_job_name(step)
+        walltime = convert_walltime_to_seconds(step.walltime or 0)
+        metadata = client.V1ObjectMeta(name=job_name, namespace=self.namespace)
+        resources = self.generate_resources(step)
+        pull_always = True if self.config.get("pull_policy") == "Always" else False
+
+        container = {
+            "command": " ".join(self.command),
+            "image": self.job_desc["image"],
+            "workingDir": step.workdir,
+            "name": container_name,
+            "pullAlways": pull_always,
+            "volumes": {
+                step.name: {
+                    "configMapName": step.name,
+                    "path": "/workdir",
+                    "items": {
+                        "entrypoint": "entrypoint.sh",
+                        "config": "config.json",
+                        "app-config": "app-config",
+                    },
+                }
+            },
+            "environment": self.job_desc.get("environment") or {},
+            "resources": resources,
+        }
+
+        labels = {
+            "app": self.job_desc["name"],
+            defaults.operator_label: jobid,
+        }
+
+        # Should the job always succeed?
+        if self.always_succeed:
+            labels["always-succeed"] = "1"
+
+        spec = {
+            "containers": [container],
+            "jobLabels": labels,
+            # Assume we can allow some autoscaling
+            "maxSize": step.nodes + 100,
+            "size": step.nodes,
+            "tasks": step.cores_per_task,
+            "network": {
+                "headlessName": step.name,
+            },
+        }
+        if walltime:
+            spec["deadlineSeconds"] = int(walltime)
+
+        node_selector = self.get_node_selector()
+        if node_selector is not None:
+            spec["pod"] = {"nodeSelector": node_selector}
+
+        minicluster = {
+            "kind": "MiniCluster",
+            "metadata": metadata,
+            "apiVersion": "flux-framework.org/v1alpha2",
+            "spec": spec,
+        }
+
+        retcode = -1
+        crd_api = client.CustomObjectsApi()
+        try:
+            crd_api.create_namespaced_custom_object(
+                group="flux-framework.org",
+                version="v1alpha2",
+                namespace=self.namespace,
+                plural="miniclusters",
+                body=minicluster,
+            )
+            retcode = 0
+            submit_status = SubmissionCode.OK
+        except client.exceptions.ApiException as e:
+            if e.reason == "Conflict":
+                LOGGER.warning(
+                    f"MiniCluster job for {step.name} exists, assuming resumed: {e.reason}"
+                )
+                submit_status = SubmissionCode.CONFLICT
+            else:
+                LOGGER.info(f"There was a create MiniCluster error: {e.reason}, {e}")
+                submit_status = SubmissionCode.ERROR
+
+        return JobSubmission(submit_status, retcode)
+
+    def get_metric_events(self, pod, log):
+        """
+        Send metric events to the manager. These events go to a custom watcher.
+        """
+        # Cut out early if no special event parsing
+        if not self.module:
+            print(f"There is no module defined for {self.job_desc['name']}")
+            return
+
+        try:
+            events = self.module.parse_log(log)
+        except Exception as e:
+            print(f"Error parsing custom metric for {pod.metadata.name}: {e}")
+            return
+
+        # Metadata about the Job to associate to
+        job_name = pod.metadata.labels["job-name"]
+
+        # In the message we send the metrics, job name, and step name
+        return {"job_name": job_name, "step_name": self.job_desc["name"], "metrics": events}
+
+    def send_kubernetes_event(self, pod, metrics):
+        """
+        Send a kubernetes event instead of metrics via the state machine.
+
+        This function is currently not used.
+        """
+        v1 = client.CoreV1Api()
+        now = datetime.datetime.utcnow()
+        job_name = pod.metadata.labels["job-name"]
+        job_uid = pod.metadata.labels["controller-uid"]
+
+        event = client.CoreV1Event(
+            metadata=client.V1ObjectMeta(
+                generate_name=job_name,
+            ),
+            involved_object=client.V1ObjectReference(
+                kind="Job",
+                api_version="batch/v1",
+                namespace=pod.metadata.namespace,
+                name=job_name,
+                uid=job_uid,
+            ),
+            reason="CustomMetric",
+            message=json.dumps(metrics),
+            first_timestamp=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            last_timestamp=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            type="Normal",
+            source=client.V1EventSource(component="state-machine"),
+        )
+
+        try:
+            v1.create_namespaced_event(pod.metadata.namespace, event)
+        except Exception as e:
+            print(f"Error creating event: {e}")
+        return metrics
 
     def cancel_jobs(self, joblist):
         """
@@ -332,7 +500,8 @@ class KubernetesTracker(BaseTracker):
         """
         Save a log identifier for a finished pod (job)
         """
-        if not self.save_path or not Job:
+        # No job, no purpose to save
+        if not job:
             return
         api = client.CoreV1Api()
 
@@ -343,21 +512,34 @@ class KubernetesTracker(BaseTracker):
         ).items
 
         # Create the save path
-        logs_path = os.path.join(self.save_path, "logs")
-        if not os.path.exists(logs_path):
-            os.makedirs(logs_path)
+        if self.save_path:
+            logs_path = os.path.join(self.save_path, "logs")
+            if not os.path.exists(logs_path):
+                os.makedirs(logs_path)
 
-        # We might have one pod, but can't assume
+        # We might have one pod, but can't assume.
+        # For metrics, we assume logs coming from main (index 0) pod
+        # This can change if needed
         for i, pod in enumerate(pods):
-            print(f"Saving log for {pod.metadata.name}")
             try:
-                logs = api.read_namespaced_pod_log(
+                log = api.read_namespaced_pod_log(
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
-                    container=container_name,
                     follow=False,
                     timestamps=True,
                 )
+                if i == 0:
+                    print(f"Saving log for {pod.metadata.name}")
+
+                    # We assume lead pod (index 0) is of interest
+                    metrics = self.adapter.get_metric_events(pod, log)
+                    if metrics:
+                        self.metrics.append(metrics)
+
+                # If we have metrics to send, send them for the manager to receive
+                if not self.save_path:
+                    continue
+
                 log_file = os.path.join(
                     logs_path,
                     f"{job.job.metadata.labels['app']}-{job.job.metadata.labels['jobid']}-{i}.out",
@@ -365,7 +547,7 @@ class KubernetesTracker(BaseTracker):
                 # Don't write twice
                 if not os.path.exists(log_file):
                     print(f"Saving log file {log_file}")
-                    utils.write_file(logs, log_file)
+                    utils.write_file(log, log_file)
                 else:
                     print(f"Log file {log_file} already exists")
 
@@ -378,15 +560,17 @@ class KubernetesTracker(BaseTracker):
         Create job parameters for a Kubernetes Job CRD
         """
         LOGGER.debug(f"[{self.type}] jobid = {jobid}")
+
+        # Working directory is created and cd'd to
+        workdir = self.job_desc.get("workdir") or defaults.workdir
+
         step = JobSetup(
             name=jobid.lower().replace("_", "-"),
             nodes=self.nnodes,
             cores_per_task=self.ncores,
             gpus=self.ngpus,
+            workdir=workdir,
         )
-
-        # Working directory is created and cd'd to
-        workdir = self.job_desc.get("workdir") or defaults.workdir
 
         if "script" in self.job_desc:
             # This allows the script to be able to handle one or more jobid

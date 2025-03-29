@@ -105,6 +105,13 @@ spec:
                           description: Walltime (in string format) for the job
                           type: string
                       type: object
+                    events:
+                      description: Event for a job
+                      properties:
+                        script:
+                          description: Custom parsing script
+                          type: string
+                      type: object
                     image:
                       description: |-
                         Namespace is inherited from StateMachine Spec
@@ -185,6 +192,9 @@ spec:
                     default: r
                     description: Subdomain to use
                     type: string
+                  verbose:
+                    description: Run in more verbose mode
+                    type: boolean
                 type: object
               registry:
                 description: |-
@@ -239,6 +249,42 @@ spec:
                     description: Number of state machine sequences required for completion
                     format: int32
                     type: integer
+                  events:
+                    description: Custom events  -> actions to take
+                    items:
+                      properties:
+                        action:
+                          description: Action to take (e.g., finish-workflow)
+                          type: string
+                        backoff:
+                          description: Backoff and repetitions to respond to event
+                          format: int32
+                          type: integer
+                        maxSize:
+                          format: int32
+                          type: integer
+                        metric:
+                          description: Name of metric, indexed into model lookup (e.g.,
+                            count.job_b.failed)
+                          type: string
+                        minCompletions:
+                          format: int32
+                          type: integer
+                        minSize:
+                          format: int32
+                          type: integer
+                        repetitions:
+                          format: int32
+                          type: integer
+                        when:
+                          description: Conditional to check. If not set, checks if
+                            nonzero or nonempty
+                          type: string
+                      required:
+                      - action
+                      - metric
+                      type: object
+                    type: array
                   prefix:
                     description: Prefix for jobs (e.g., structure_ for mummi)
                     type: string

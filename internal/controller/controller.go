@@ -76,6 +76,14 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=core,resources="services",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources="ingresses",verbs=get;list;watch;create;update;patch;delete
 
+//+kubebuilder:rbac:groups="",resources=miniclusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=miniclusters/status,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=miniclusters/finalizers,verbs=get;list;watch;create;update;patch;delete
+
+//+kubebuilder:rbac:groups=flux-framework.org,resources=miniclusters,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=flux-framework.org,resources=miniclusters/status,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=flux-framework.org,resources=miniclusters/finalizers,verbs=get;list;watch;create;update;patch;delete
+
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 
@@ -83,6 +91,8 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=core,resources=batch,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 //+kubebuilder:rbac:groups=core,resources=networks,verbs=create;patch
+//+kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch;delete
 
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources="rolebindings",verbs=get;list;watch;create;update;patch;delete
@@ -96,15 +106,6 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=batch,resources=pods,verbs=get;list;watch;create;update;patch;delete;exec;
 //+kubebuilder:rbac:groups=batch,resources=pods/log,verbs=get;list;watch;create;update;patch;delete;exec;
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the StateMachine object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile
 func (r *StateMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	// Create a new MetricSet

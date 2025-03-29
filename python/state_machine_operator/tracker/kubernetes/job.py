@@ -1,5 +1,3 @@
-import os
-
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 from state_machine_operator.tracker.job import BaseJob
@@ -51,12 +49,13 @@ class Job(BaseJob):
         """
         return self.is_completed and not self.job.status.failed
 
+    def duration(self):
+        """
+        Get the job duration, if supported.
 
-def get_namespace():
-    """
-    Get the current namespace the workflow manager is running in.
-    """
-    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-    if os.path.exists(ns_path):
-        with open(ns_path) as f:
-            return f.read().strip()
+        This should be total seconds.
+        """
+        # Cut out early if we haven't started and finished!
+        if self.job.status.completion_time is None or self.job.status.start_time is None:
+            return
+        return (self.job.status.completion_time - self.job.status.start_time).total_seconds()

@@ -22,6 +22,22 @@ state_machine_config_schema = {
             "properties": {
                 "completed": {"type": "number", "default": 4},
                 "prefix": {"type": "string"},
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action": {"type": "string"},
+                            "when": {"type": "string"},
+                            "metric": {"type": "string"},
+                            "minCompletions": {"type": ["number", "null"]},
+                            "maxSize": {"type": ["number", "null"]},
+                            "minSize": {"type": ["number", "null"]},
+                            "repetitions": {"type": ["number", "null"]},
+                            "backoff": {"type": ["number", "null"]},
+                        },
+                    },
+                },
             },
             "additionalProperties": False,
         },
@@ -61,6 +77,7 @@ state_machine_config_schema = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
+                    "events": {"type": "object"},
                 },
                 "required": ["config"],
             },

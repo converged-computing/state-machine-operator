@@ -37,6 +37,7 @@ if __name__ == "__main__":
             "jsonschema",
             "Jinja2",
             "pyyaml",
+            "river",
             "kubernetes",
         ],
         tests_require=["pytest", "pytest-cov"],

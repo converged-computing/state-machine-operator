@@ -2,7 +2,8 @@ from logging import getLogger
 
 from kubernetes import client, config
 
-from .job import Job, get_namespace
+from .job import Job
+from .utils import get_namespace
 
 LOGGER = getLogger(__name__)
 

@@ -41,3 +41,10 @@ class BaseJob:
         Determine if a job has succeeded
         """
         raise NotImplementedError
+
+    # Global metrics (can optionally be supported)
+    def duration(self):
+        """
+        Get the job duration, if supported
+        """
+        pass

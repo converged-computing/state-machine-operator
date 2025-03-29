@@ -91,6 +91,9 @@ func populateJobDefaults(job *api.JobStep) {
 	if job.AppConfig != "" {
 		job.AppConfig = strings.ReplaceAll(job.AppConfig, "\n", "\n  ")
 	}
+	if job.Events.Script != "" {
+		job.Events.Script = "    " + strings.ReplaceAll(job.Events.Script, "\n", "\n    ")
+	}
 }
 
 // TemplateCreateSim prepares the template for the config file mount

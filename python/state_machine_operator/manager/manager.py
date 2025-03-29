@@ -15,6 +15,7 @@ import state_machine_operator.tracker as tracker
 import state_machine_operator.utils as utils
 from state_machine_operator.machine import new_state_machine
 
+from .metrics import WorkflowMetrics
 from .utils import timed
 
 # Print debug for now
@@ -58,23 +59,28 @@ class WorkflowManager:
         self.times = {}
         self.timestamps = {}
 
+        # Metrics for the workflow
+        self.metrics = WorkflowMetrics()
+        self.init_storage(registry, plain_http, filesystem)
+
+        # Prepare tracker, an event driven workload manager
+        self.setup_tracker()
+
+    def init_storage(self, registry, plain_http, filesystem):
+        """
+        Initialize OCI registry or filesystem
+        """
         if not filesystem:
             self.init_registry(registry, plain_http)
             LOGGER.info(f"   Registry: [{self.registry}]")
         else:
             # We want a filesystem but need to create a temporary location
             if not self.workflow.filesystem:
+
+                # HPC clusters should be careful if /tmp is not shared
                 filesystem = self.workflow.workdir or tempfile.mkdtemp()
                 self.workflow.set_filesystem(filesystem)
             LOGGER.info(f"   Filesystem: [{filesystem}]")
-
-        if self.scheduler not in defaults.supported_schedulers:
-            raise ValueError(
-                f"{self.scheduler} is not valid, please choose from {defaults.supported_schedulers}"
-            )
-
-        # Prepare tracker, an event driven workload manager
-        self.setup_tracker()
 
     def setup_tracker(self):
         """
@@ -105,6 +111,7 @@ class WorkflowManager:
         """
         number = random.choice(range(0, 99999999))
         jobid = self.prefix + str(number).zfill(9)
+
         # This is hugely unlikely to happen, but you never know!
         if jobid in self.trackers:
             return self.generate_id()
@@ -260,17 +267,27 @@ class WorkflowManager:
             LOGGER.info(
                 f"Workflow is complete - {completions}/{self.workflow.completions_needed} are done"
             )
-            self.add_timestamp("workflow_complete")
+            self.complete_workflow()
 
-            # Stop the watcher and save output
-            self.watcher.stop()
-            self.watcher.save(self.save_dir)
+    def complete_workflow(self):
+        """
+        Complete the workflow.
 
-            self.save_times()
+        Can trigger at the actual end, or if issued by an action
+        """
+        self.add_timestamp("workflow_complete")
 
-            # For extra files to write
-            time.sleep(5)
-            sys.exit(0)
+        # Stop the watcher and save output
+        self.watcher.stop()
+        self.watcher.save(self.save_dir)
+        self.save_times()
+
+        # Print final model metrics
+        self.metrics.summarize_all()
+
+        # For extra files to write
+        time.sleep(5)
+        sys.exit(0)
 
     @property
     def save_dir(self):
@@ -318,9 +335,7 @@ class WorkflowManager:
         # submit_n negative would be OK, a 0-> negative range is empty
         submit_n = max(submit_n, 0)
 
-        logfn = LOGGER.info
-        if self.quiet:
-            logfn = LOGGER.debug
+        logfn = LOGGER.debug if self.quiet else LOGGER.info
 
         logfn(f"\n> 🌀 Starting step {step['name']}")
         logfn("> Workflow needs")
@@ -337,7 +352,6 @@ class WorkflowManager:
         logfn(f"  > New job sequences submit    {submit_n} ")
 
         # If submit is > than completions needed, we don't need that many
-        # TODO we would also downscale the cluster here
         submit_n = min(jobs_needed, submit_n)
         for _ in range(0, submit_n):
             jobid = self.generate_id()
@@ -399,7 +413,7 @@ class WorkflowManager:
 
     def succeed_job(self, job, state_machine):
         """
-        A state machine can succeed if it exits with 0 or is marked to always succeed
+        A state machine can succeed if it exits with 0 or is marked to always succeed.
         """
         self.add_timestamp(f"{job.label}_succeeded")
         LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
@@ -407,6 +421,144 @@ class WorkflowManager:
         # Only change if we aren't complete
         if state_machine.current_state.id != "complete":
             state_machine.change()
+
+    def fail_job(self, job, state_machine):
+        """
+        Fail the state machine based on job outcome.
+        """
+        self.add_timestamp(f"{job.label}_failed")
+        LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
+        # Marking a job failed deletes all Kubernetes objects associated across stages.
+        # We do this because we assume no step should be retried, etc.
+        state_machine.mark_failed(job)
+        # If we get here, the job has already done retries for the step
+        # We need to cancel the state machine (all associated jobs)
+        state_machine.cleanup()
+
+        # Deleting the state machine means we stop tracking it
+        if job.jobid in self.trackers:
+            del self.trackers[job.jobid]
+
+    def check_metrics(self, job):
+        """
+        Check metrics against workflow specified.
+        """
+        # The self.workflow.rules has indices that correspond to metrics lookup
+        for metric, triggers in self.workflow.rules.items():
+            model_name, step_name, key = metric.split(".")
+            if job.step_name != step_name:
+                continue
+
+            # Is the metric known to us?
+            if model_name not in self.metrics.models:
+                print(f"Warning, model metric {model_name} is not known")
+                continue
+
+            # This is a specific river streaming ML model
+            model = self.metrics.models[model_name]
+
+            # Perform actions
+            for trigger in triggers:
+                # Lookup a metric value by the job stay and name. E.g,.
+                # count.job_a.failed
+                try:
+                    value = model[step_name][key].get()
+                except KeyError:
+                    continue
+
+                # And check against the condition
+                if trigger.should_trigger(value):
+                    self.trigger_workflow_action(trigger, step_name, value)
+
+    def trigger_grow(self, trigger, step_name, value):
+        """
+        Trigger the job to grow
+        """
+        previous = self.workflow.jobs[step_name]["config"]["nnodes"]
+        max_size = trigger.action.max_size
+        if max_size >= previous + 1:
+            LOGGER.info(
+                f"Grow triggered: {trigger.action.metric} {trigger.when} ({value}), already >= max size {max_size}"
+            )
+            return
+
+        self.workflow.jobs[step_name]["config"]["nnodes"] += 1
+        updated = self.workflow.jobs[step_name]["config"]["nnodes"]
+        LOGGER.info(
+            f"Grow triggered: {trigger.action.metric} {trigger.when} ({value}), nodes {previous}=>{updated}"
+        )
+
+    def trigger_shrink(self, trigger, step_name, value):
+        """
+        Trigger the job to shrink, down to a min size of 1
+        """
+        previous = self.workflow.jobs[step_name]["config"]["nnodes"]
+        min_size = trigger.action.min_size or 1
+        if previous <= min_size:
+            LOGGER.info(
+                f"Shrink triggered: {trigger.action.metric} {trigger.when} ({value}), already at min size {min_size}"
+            )
+            return
+        self.workflow.jobs[step_name]["config"]["nnodes"] -= 1
+        updated = self.workflow.jobs[step_name]["config"]["nnodes"]
+        LOGGER.info(
+            f"Shrink triggered: {trigger.action.metric} {trigger.when} ({value}), nodes {previous}=>{updated}"
+        )
+
+    def trigger_workflow_action(self, trigger, step_name, value):
+        """
+        Given an action name, issue it for the workflow
+        """
+        # This action has a minimum number of total completions
+        if trigger.action.min_completions:
+            completions = len(self.get_current_state()["completed"])
+            if completions < trigger.action.min_completions:
+                return
+
+        # Check if we have enough completions
+        if trigger.action.name == "finish-workflow":
+            # TODO: add more detail in calling function to event trigger
+            LOGGER.info(
+                f"Workflow completion triggered: {trigger.action.metric} {trigger.when} ({value})"
+            )
+            self.complete_workflow()
+
+        if trigger.action.name == "grow":
+            self.trigger_grow(trigger, step_name, value)
+
+        if trigger.action.name == "shrink":
+            self.trigger_shrink(trigger, step_name, value)
+
+    def update_metrics(self, job, state_machine):
+        """
+        Update global metrics given a job completion (success or failure)
+        """
+        # Counter of successful and failed jobs
+        if job.is_failed():
+            self.metrics.increment_counter("failure", step=job.step_name)
+        elif job.is_succeeded():
+            self.metrics.increment_counter("success", step=job.step_name)
+
+        # Add job duration if supported by tracker
+        duration = job.duration()
+        if job.is_completed() and duration is not None:
+            self.metrics.add_model_entry("duration", duration, step=job.step_name)
+
+        # Load custom metrics from the tracker
+        self.load_custom_metrics(state_machine)
+
+    def load_custom_metrics(self, state_machine):
+        """
+        Custom metrics are created as events and received here.
+        """
+        # This takes the current step
+        # {"job_name": job_name, "step_name": pod.metadata.labels["app"], "metrics": events}
+        for m in state_machine.metrics():
+            print(f"Loading custom metric {m}")
+            try:
+                self.metrics.add_custom_metric(m["metrics"], m["job_name"], m["step_name"])
+            except Exception as e:
+                print(f"Issue parsing custom metric {m}: {e}")
 
     def add_timestamp_first_seen(self, label):
         """
@@ -442,6 +594,9 @@ class WorkflowManager:
             if job.is_active() and not job.is_completed():
                 continue
 
+            # Update metrics. This needs to happen before the job changes state
+            self.update_metrics(job, state_machine)
+
             # This is a case where the job failed, but we allow failure and keep going
             if job.is_failed() and job.always_succeed:
                 self.succeed_job(job, state_machine)
@@ -452,20 +607,15 @@ class WorkflowManager:
 
             # The job just completed and failed, clean up.
             if job.is_failed():
-                self.add_timestamp(f"{job.label}_failed")
-                LOGGER.debug(f"Job {job.jobid} failed stage '{state_machine.current_state.id}'")
-                # Marking a job failed deletes all Kubernetes objects associated across stages.
-                # We do this because we assume no step should be retried, etc.
-                state_machine.mark_failed(job)
-                # If we get here, the job has already done retries for the step
-                # We need to cancel the state machine (all associated jobs)
-                state_machine.cleanup()
-                # Deleting the state machine means we stop tracking it
-                if job.jobid in self.trackers:
-                    del self.trackers[job.jobid]
+                self.fail_job(job, state_machine)
 
             # Check if the workflow is complete
             self.check_complete()
+
+            # Check metrics for any actions to take
+            # Since a specific job will just change, we check
+            # for specific steps oriented to a job
+            self.check_metrics(job)
 
             # Check to see if we should submit new jobs
             self.new_jobs()

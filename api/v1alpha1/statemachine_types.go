@@ -70,7 +70,27 @@ type Workflow struct {
 	// Prefix for jobs (e.g., structure_ for mummi)
 	Prefix string `json:"prefix,omitempty"`
 
-	// TODO add a failure condition?
+	// Custom events  -> actions to take
+	Events []WorkflowEvent `json:"events,omitempty"`
+}
+
+type WorkflowEvent struct {
+
+	// Name of metric, indexed into model lookup (e.g., count.job_b.failed)
+	Metric string `json:"metric"`
+
+	// Conditional to check. If not set, checks if nonzero or nonempty
+	When string `json:"when,omitempty"`
+
+	// Action to take (e.g., finish-workflow)
+	Action string `json:"action"`
+
+	// Backoff and repetitions to respond to event
+	Backoff     int32 `json:"backoff,omitempty"`
+	Repetitions int32 `json:"repetitions,omitempty"`
+	MinCompletions int32 `json:"minCompletions,omitempty"`
+	MaxSize int32 `json:"maxSize,omitempty"`
+	MinSize int32 `json:"minSize,omitempty"`
 }
 
 // A JobSequence is a list of JobSteps
@@ -78,6 +98,12 @@ type Workflow struct {
 // separately, and then can also pass the entire thing forward as a config
 // to the job (not knowing the structure in advance)
 type JobSequence []JobStep
+
+type JobEvents struct {
+
+	// Custom parsing script
+	Script string `json:"script,omitempty"`
+}
 
 type JobStep struct {
 
@@ -91,6 +117,10 @@ type JobStep struct {
 	// Configuration for the job registry
 	// +optional
 	Registry RegistryConfig `json:"registry,omitempty"`
+
+	// Event for a job
+	// +optional
+	Events JobEvents `json:"events,omitempty"`
 
 	// Architecture (arm64 or amd64)
 	// +kubebuilder:default="amd64"
@@ -214,6 +244,10 @@ type Manager struct {
 	// container image for the workflow manager (must be provided)
 	// +omitempty
 	NodeSelector string `json:"nodeSelector,omitempty"`
+
+	// Run in more verbose mode
+	// +optional
+	Verbose bool `json:"verbose"`
 
 	// Image pull policy (e.g., Always, Never, etc.)
 	// +kubebuilder:default="IfNotPresent"

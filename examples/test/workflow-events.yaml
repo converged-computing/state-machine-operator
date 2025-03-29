@@ -1,0 +1,43 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+
+  workflow:
+    completed: 10
+    events:
+      # When more than half of job b's fail, finish the entire workflow
+      - metric: count.job_b.failure
+        when: ">= 5"
+        action: finish-workflow
+
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the first
+
+  # Note that this step always fails and we never make it to C
+  # This should end the workflow early
+  - name: job_b
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    # That is always going to fail!
+    script: exit 1
+
+  - name: job_c
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the third

@@ -1,0 +1,60 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+  workflow:
+    completed: 10
+    events:
+       # Custom metric - derived from parsing lammps log
+        # Max decreases down to 1 (default), with 3 breaks in between, and 3 times
+      - metric: mean.lammps.lammps-walltime
+        when: "<= 10"
+        action: shrink
+        repetitions: 3
+        backoff: 3
+        minSize: 1
+
+  cluster:
+    maxSize: 2
+
+  jobs:
+  - name: job_a
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is a setup for lammps
+
+  # Note that this step always fails and we never make it to C
+  # This should end the workflow early
+  - name: lammps
+    properties:
+      minicluster: "yes"
+    config:
+      nodes: 4
+      # coresPerTask: 1
+    image: ghcr.io/converged-computing/metric-lammps-cpu:zen4
+    workdir: /opt/lammps/examples/reaxff/HNS/
+    # TODO we need a way for this to include flux and get cores in instance on demand
+    script: lmp -v x 2 -v y 2 -v z 2 -in ./in.reaxff.hns -nocite
+
+    # Event parsing. Assume for a log for now
+    events:
+     script: |
+        def parse_log(log):
+            import re
+            match = re.search('Total wall time: (?P<walltime>.*)', log)
+            walltime = match.groupdict()['walltime']
+            hours, minutes, seconds = walltime.split(':')
+            walltime = (float(hours) * 60 * 60) + (float(minutes) * 60) + (float(seconds))
+            return {"lammps-walltime": walltime}
+
+  - name: job_c
+    config:
+      nodes: 1
+      coresPerTask: 1
+    image: rockylinux:9
+    script: echo This is the third

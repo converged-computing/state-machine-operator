@@ -5,6 +5,10 @@ class Watcher:
     expose the same (empty) interface.
     """
 
+    def __init__(self):
+        # Any watcher can provide custom metrics
+        self.metrics = []
+
     def start(self):
         pass
 
