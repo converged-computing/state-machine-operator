@@ -26,6 +26,9 @@ cd -
 jobid="{{ jobid }}"
 outpath="{{ workdir }}"
 registry="{{ registry }}"
+{% if cores_per_task %}cores_per_task={{ cores_per_task }}{% endif %}
+{% if nodes %}nodes={{ nodes }}{% endif %}
+{% if tasks %}tasks={{ tasks }}{% endif %}
 {% if pull %}pull_tag={{ pull }}{% endif %}
 {% if push %}push_tag={{ push }}{% endif %}
 

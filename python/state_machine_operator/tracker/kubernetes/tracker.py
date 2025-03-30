@@ -315,6 +315,7 @@ class KubernetesJob(Job):
             "workingDir": step.workdir,
             "name": container_name,
             "pullAlways": pull_always,
+            "launcher": True,
             "volumes": {
                 step.name: {
                     "configMapName": step.name,
@@ -570,6 +571,7 @@ class KubernetesTracker(BaseTracker):
             cores_per_task=self.ncores,
             gpus=self.ngpus,
             workdir=workdir,
+            tasks=self.tasks,
         )
 
         if "script" in self.job_desc:
@@ -584,6 +586,9 @@ class KubernetesTracker(BaseTracker):
                 "push": self.push_to,
                 "registry": self.registry_host,
                 "plain_http": self.registry_plain_http,
+                "nodes": step.nodes,
+                "cores_per_task": self.ncores,
+                "tasks": step.tasks,
             }
             step.script = Template(self.job_desc["script"]).render(**kwargs)
 

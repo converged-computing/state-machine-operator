@@ -28,6 +28,7 @@ class JobSetup:
     nodes: int
     cores_per_task: int
     script: str = None
+    tasks: int = None
     walltime: str = None
     gpus: int = 0
     workdir: str = None

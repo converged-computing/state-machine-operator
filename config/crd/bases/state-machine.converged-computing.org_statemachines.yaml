@@ -101,6 +101,10 @@ spec:
                             because we assume the initial data is bad.
                             RetryFailure
                           type: boolean
+                        tasks:
+                          description: Number of tasks
+                          format: int32
+                          type: integer
                         walltime:
                           description: Walltime (in string format) for the job
                           type: string
