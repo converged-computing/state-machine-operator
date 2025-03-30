@@ -472,11 +472,14 @@ class WorkflowManager:
 
     def trigger_grow(self, trigger, step_name, value):
         """
-        Trigger the job to grow
+        Trigger the job to grow.
+
+        Note that this is more of a static grow - subsequent jobs will be given more
+        nodes. It doesn't give currently running jobs more.
         """
         previous = self.workflow.jobs[step_name]["config"]["nnodes"]
         max_size = trigger.action.max_size
-        if max_size >= previous + 1:
+        if previous + 1 >= max_size:
             LOGGER.info(
                 f"Grow triggered: {trigger.action.metric} {trigger.when} ({value}), already >= max size {max_size}"
             )
@@ -523,9 +526,13 @@ class WorkflowManager:
             )
             self.complete_workflow()
 
+        # TODO: think about use case / mechanism for dynamic grow.
+        # It would likely need to be requested by the application.
+        # Static grow increases subsequent nodes for a job
         if trigger.action.name == "grow":
             self.trigger_grow(trigger, step_name, value)
 
+        # Static shrink decreases subsequent nodes for a job
         if trigger.action.name == "shrink":
             self.trigger_shrink(trigger, step_name, value)
 

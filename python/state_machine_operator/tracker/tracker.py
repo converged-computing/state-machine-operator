@@ -125,6 +125,12 @@ class BaseTracker:
         return int(self.config.get("nnodes", 1))
 
     @property
+    def tasks(self):
+        tasks = self.config.get("tasks")
+        if tasks is not None:
+            return int(tasks)
+
+    @property
     def ncores(self):
         return int(self.config.get("cores_per_task", 1))
 
