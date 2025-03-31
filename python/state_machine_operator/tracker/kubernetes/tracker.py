@@ -142,6 +142,33 @@ class KubernetesJob(Job):
         # Underscores are not allowed
         return (f"{step_name}-{step.name}").replace("_", "-")
 
+    def generate_job_volumes(self, step):
+        """
+        Generate volumes for job (regular or JobSet)
+        """
+        return [
+            client.V1Volume(
+                name="entrypoint-mount",
+                config_map=client.V1ConfigMapVolumeSource(
+                    name=step.name,
+                    items=[
+                        client.V1KeyToPath(
+                            key="entrypoint",
+                            path="entrypoint.sh",
+                        ),
+                        client.V1KeyToPath(
+                            key="config",
+                            path="config.json",
+                        ),
+                        client.V1KeyToPath(
+                            key="app-config",
+                            path="app-config",
+                        ),
+                    ],
+                ),
+            ),
+        ]
+
     def generate_batch_job(self, step, jobid):
         """
         Generate the job CRD assuming the config map entrypoint.
@@ -170,30 +197,6 @@ class KubernetesJob(Job):
             working_dir=step.workdir,
         )
 
-        # Prepare volumes (with config map)
-        volumes = [
-            client.V1Volume(
-                name="entrypoint-mount",
-                config_map=client.V1ConfigMapVolumeSource(
-                    name=step.name,
-                    items=[
-                        client.V1KeyToPath(
-                            key="entrypoint",
-                            path="entrypoint.sh",
-                        ),
-                        client.V1KeyToPath(
-                            key="config",
-                            path="config.json",
-                        ),
-                        client.V1KeyToPath(
-                            key="app-config",
-                            path="app-config",
-                        ),
-                    ],
-                ),
-            ),
-        ]
-
         # Job template. The app label will be used to filter later
         template = {
             "metadata": {
@@ -205,7 +208,7 @@ class KubernetesJob(Job):
             "spec": {
                 "containers": [container],
                 "restartPolicy": "Never",
-                "volumes": volumes,
+                "volumes": self.generate_job_volumes(step),
                 "subdomain": self.config.get("subdomain", "r"),
             },
         }
@@ -224,17 +227,12 @@ class KubernetesJob(Job):
         if walltime:
             template["spec"]["activeDeadlineSeconds"] = int(walltime)
 
-        # Do we want the job to terminate after failure?
-        backoff_limit = 0
-        if self.config.get("retry_failure") in true_options:
-            backoff_limit = 6
-
         spec = client.V1JobSpec(
             parallelism=step.nodes,
             completions=step.nodes,
             suspend=False,
             template=template,
-            backoff_limit=backoff_limit,
+            backoff_limit=self.backoff_limit,
         )
 
         return client.V1Job(
@@ -267,8 +265,135 @@ class KubernetesJob(Job):
         if self.properties.get("minicluster") in true_options:
             return self.submit_minicluster_job(step, jobid)
 
+        # This also needs jobset installed
+        if self.properties.get("jobset") in true_options:
+            return self.submit_jobset(step, jobid)
+
         # Default to submit a vanilla Kubernetes Job
         return self.submit_kubernetes_job(step, jobid)
+
+    @property
+    def backoff_limit(self):
+        """
+        Set the backoff limit for the job.
+
+        This determines if the job retries on failure. It is a small state machine
+        within the larger state machine.
+        """
+        backoff_limit = 0
+        if self.config.get("retry_failure") in true_options:
+            backoff_limit = 6
+        return backoff_limit
+
+    def submit_jobset(self, step, jobid):
+        """
+        Submit JobSet
+        """
+        # Get ports from properties
+        ports = self.properties.get("ports") or ""
+        ports = str(ports).split(",")
+        portset = []
+        for port in ports:
+            portset.append(client.V1ContainerPort(int(port)))
+
+        job_name = self.generate_job_name(step)
+        walltime = convert_walltime_to_seconds(step.walltime or 0)
+        metadata = client.V1ObjectMeta(name=job_name, namespace=self.namespace)
+        container = client.V1Container(
+            name=container_name,
+            image=self.job_desc["image"],
+            command=self.command,
+            working_dir=step.workdir,
+            image_pull_policy=self.config.get("pull_policy") or "IfNotPresent",
+            resources=self.generate_resources(step),
+            ports=portset,
+            volume_mounts=[
+                client.V1VolumeMount(
+                    mount_path="/workdir",
+                    name="entrypoint-mount",
+                ),
+            ],
+        )
+
+        # Add environment
+        environ = []
+        for item in self.extra_environment:
+            # All must be strings
+            item["value"] = str(item["value"])
+
+            # This comes from the environment
+            if item["value"].startswith("from:"):
+                value = item["value"].replace("from:", "")
+                del item["value"]
+
+                # assume these are from annotations or now
+                item["valueFrom"] = {"fieldRef": {"fieldPath": value}}
+            environ.append(item)
+
+        # Add the job name for a service
+        environ.append({"name": "jobname", "value": job_name})
+        container.env = environ
+
+        labels = {
+            "app": self.job_desc["name"],
+            defaults.operator_label: jobid,
+        }
+
+        # Should the job always succeed?
+        if self.always_succeed:
+            labels["always-succeed"] = "1"
+
+        replicated_job = {
+            "name": "jobset",
+            "replicas": 1,
+            "template": {
+                "metadata": {
+                    "labels": labels,
+                },
+                "spec": {
+                    "parallelism": step.nodes,
+                    "completions": step.nodes,
+                    "template": {
+                        "spec": {
+                            "containers": [container],
+                            "volumes": self.generate_job_volumes(step),
+                        }
+                    },
+                    "backoffLimit": self.backoff_limit,
+                },
+            },
+        }
+
+        if walltime:
+            replicated_job["template"]["spec"]["activeDeadlineSeconds"] = int(walltime)
+
+        js = {
+            "apiVersion": "jobset.x-k8s.io/v1alpha2",
+            "kind": "JobSet",
+            "metadata": metadata,
+            "spec": {
+                "replicatedJobs": [replicated_job],
+                "suspend": False,
+            },
+        }
+
+        api_crd = client.CustomObjectsApi()
+        retcode = -1
+        try:
+            api_crd.create_namespaced_custom_object(
+                group="jobset.x-k8s.io",
+                version="v1alpha2",
+                namespace="default",
+                plural="jobsets",
+                body=js,
+            )
+            retcode = 0
+            submit_status = SubmissionCode.OK
+        except Exception as e:
+            print(f"Error creating jobset: {e}")
+            submit_status = SubmissionCode.ERROR
+
+        return JobSubmission(submit_status, retcode)
 
     def submit_kubernetes_job(self, step, jobid):
         """

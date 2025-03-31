@@ -125,6 +125,11 @@ func (r *StateMachineReconciler) createRole(
 				Resources: []string{"events"},
 				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
 			},
+			{
+				APIGroups: []string{"jobset.x-k8s.io"},
+				Resources: []string{"jobsets"},
+				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+			},
 		},
 	}
 

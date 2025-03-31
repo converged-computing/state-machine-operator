@@ -1,0 +1,53 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+  workflow:
+    completed: 10
+     # What we could try:
+     # Having a change to epochs
+     # Stopping the workflow when we reach a certain threshold accuracy, etc.
+#    events:
+       # Custom metric - derived from parsing lammps log
+        # Max decreases down to 1 (default), with 3 breaks in between, and 3 times
+#      - metric: mean.lammps.lammps-walltime
+#        when: "<= 10"
+#        action: shrink
+#        repetitions: 3
+#        backoff: 3
+#        minSize: 1
+
+  cluster:
+    maxSize: 4
+
+  # This example needs JobSet installed
+  # kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.4.0/manifests.yaml
+  jobs:
+  - name: pytorch
+    properties:
+      jobset: "yes"
+      ports: "3389"
+    config:
+      nodes: 4
+    image: gcr.io/k8s-staging-jobset/pytorch-mnist:latest
+    workdir: /workspace
+    environment:
+      MASTER_PORT: "3389"
+      RANK: "from:metadata.annotations['batch.kubernetes.io/job-completion-index']"
+      PYTHONUNBUFFERED: "0"
+      epochs: "1"
+    script: torchrun --rdzv_id=123 --nnodes=${nodes} --nproc_per_node=1 --master_addr=${jobname}-jobset-0-0.${jobname}.default.svc.cluster.local --master_port=$MASTER_PORT --node_rank=$RANK mnist.py --epochs=${epochs} --log-interval=1
+
+    # Event parsing. Assume for a log for now
+#    events:
+#     script: |
+#        def parse_log(log):
+#            import re
+#            match = re.search('Total wall time: (?P<walltime>.*)', log)
+#            walltime = match.groupdict()['walltime']
+#            hours, minutes, seconds = walltime.split(':')
+#            walltime = (float(hours) * 60 * 60) + (float(minutes) * 60) + (float(seconds))
+#            return {"lammps-walltime": walltime}

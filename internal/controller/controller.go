@@ -76,6 +76,10 @@ func NewStateMachineReconciler(
 //+kubebuilder:rbac:groups=core,resources="services",verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources="ingresses",verbs=get;list;watch;create;update;patch;delete
 
+//+kubebuilder:rbac:groups="jobset.x-k8s.io",resources=jobsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="jobset.x-k8s.io",resources=jobsets/status,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="jobset.x-k8s.io",resources=jobsets/finalizers,verbs=get;list;watch;create;update;patch;delete
+
 //+kubebuilder:rbac:groups="",resources=miniclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=miniclusters/status,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=miniclusters/finalizers,verbs=get;list;watch;create;update;patch;delete

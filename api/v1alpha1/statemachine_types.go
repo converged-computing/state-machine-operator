@@ -122,6 +122,10 @@ type JobStep struct {
 	// +optional
 	Events JobEvents `json:"events,omitempty"`
 
+	// Environment for the job
+	// +optional
+	Environment map[string]string `json:"environment,omitempty"`
+
 	// Architecture (arm64 or amd64)
 	// +kubebuilder:default="amd64"
 	// +default="amd64"
