@@ -1,0 +1,65 @@
+apiVersion: state-machine.converged-computing.org/v1alpha1
+kind: StateMachine
+metadata:
+  name: state-machine
+spec:
+  manager:
+    pullPolicy: Never
+    interactive: true
+  workflow:
+    completed: 1
+    events:
+      # Finish the workflow when accuracy good enough
+      # This is a workflow action
+      - metric: mean.pytorch.accuracy
+        when: ">= 0.95"
+        action: finish-workflow
+      # Repeat the step (new job) if accuracy not good enough, or not yet defined
+      - metric: mean.pytorch.accuracy
+        when: "< 0.95"
+        action: repeat
+
+  cluster:
+    maxSize: 4
+
+  # This example needs JobSet installed
+  # kubectl apply --server-side -f https://github.com/kubernetes-sigs/jobset/releases/download/v0.4.0/manifests.yaml
+  jobs:
+  - name: pytorch
+    properties:
+      jobset: "yes"
+      ports: "3389"
+    config:
+      nodes: 4
+    # Derived from gcr.io/k8s-staging-jobset/pytorch-resnet:latest
+    image: ghcr.io/converged-computing/mummi-experiments:cifar
+    environment:
+      MASTER_PORT: "3389"
+      PYTHONUNBUFFERED: "0"
+      WORLD_RANK: "from:metadata.annotations['batch.kubernetes.io/job-completion-index']"
+      epochs: "4"
+    script:  |
+      export ENDPOINT=${jobname}-jobset-0-0.${jobname}.default.svc.cluster.local:${MASTER_PORT}
+      export WORLD_SIZE=$nodes
+      RESUME=""
+      oras pull --plain-http $registry/models:resnet-cifar || echo "A model has not been generated yet."
+      if [[ -f "/tmp/out/saved_models/resnet_distributed.pth" ]]; then
+          echo "Found model checkpoint to resume from."
+          RESUME="--resume"
+      fi
+      cmd="torchrun --nproc_per_node=1 --nnodes=$nodes --node_rank=$WORLD_RANK --rdzv_endpoint=${ENDPOINT} /resnet.py --backend=gloo --num_epochs=${epochs} ${RESUME}"
+      echo $cmd
+      $cmd
+      oras push --plain-http $registry/models:resnet-cifar .
+
+    # Event parsing. This returns the last model accuracy, which reflects the last
+    # epoch to run.
+    events:
+     script: |
+        def parse_log(log):
+            import re
+            # Find the last line with reported accuracy (each epoch is reported)
+            log = [x for x in log.split('\n') if "Accuracy" in x][-1]
+            match = re.search('Accuracy: (?P<accuracy>.*)', log)
+            accuracy = float(match.groupdict()['accuracy'])
+            return {"accuracy": accuracy}

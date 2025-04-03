@@ -237,9 +237,13 @@ class WorkflowManager:
                 state_machine.change()
                 self.trackers[job.jobid] = state_machine
             except Exception:
-                LOGGER.info(f"Step {job.step_name} for job {job.jobid} already transitioned")
+                LOGGER.info(
+                    f"Step {job.step_name} for job {job.jobid} already transitioned"
+                )
 
-        LOGGER.info(f"Manager running with {len(completed_jobs)} job sequence completions.")
+        LOGGER.info(
+            f"Manager running with {len(completed_jobs)} job sequence completions."
+        )
         # TODO we likely want some logic to cleanup failed
         # But this might not always be desired
 
@@ -250,7 +254,9 @@ class WorkflowManager:
         if job.jobid in self.trackers:
             state_machine = self.trackers[job.jobid]
         else:
-            state_machine = new_state_machine(self.workflow, job.jobid, self.scheduler)()
+            state_machine = new_state_machine(
+                self.workflow, job.jobid, self.scheduler
+            )()
         return state_machine
 
     def check_complete(self):
@@ -335,7 +341,14 @@ class WorkflowManager:
         # submit_n negative would be OK, a 0-> negative range is empty
         submit_n = max(submit_n, 0)
 
+        # If submit is > than completions needed, we don't need that many
+        submit_n = min(jobs_needed, submit_n)
+
         logfn = LOGGER.debug if self.quiet else LOGGER.info
+
+        # Nothing to submit, don't report an update
+        if submit_n <= 0:
+            return
 
         logfn(f"\n> 🌀 Starting step {step['name']}")
         logfn("> Workflow needs")
@@ -351,8 +364,6 @@ class WorkflowManager:
         logfn(f"  > In progress                 {active_jobs}")
         logfn(f"  > New job sequences submit    {submit_n} ")
 
-        # If submit is > than completions needed, we don't need that many
-        submit_n = min(jobs_needed, submit_n)
         for _ in range(0, submit_n):
             jobid = self.generate_id()
 
@@ -407,8 +418,9 @@ class WorkflowManager:
         """
         Add a timestamp to times. This assumes unique names.
         """
+        # Don't repeat times for repeatable jobs
         if name in self.timestamps:
-            raise ValueError(f"Already seen {name}, this should not happen.")
+            return
         self.timestamps[name] = timestamp or time.time()
 
     def succeed_job(self, job, state_machine):
@@ -416,10 +428,12 @@ class WorkflowManager:
         A state machine can succeed if it exits with 0 or is marked to always succeed.
         """
         self.add_timestamp(f"{job.label}_succeeded")
-        LOGGER.debug(f"Job {job.jobid} completed stage '{state_machine.current_state.id}'")
+        LOGGER.debug(
+            f"Job {job.jobid} completed stage '{state_machine.current_state.id}'"
+        )
         state_machine.mark_succeeded(job)
-        # Only change if we aren't complete
-        if state_machine.current_state.id != "complete":
+        # Change successful jobs it not complete
+        if job.is_succeeded() and state_machine.current_state.id != "complete":
             state_machine.change()
 
     def fail_job(self, job, state_machine):
@@ -439,9 +453,11 @@ class WorkflowManager:
         if job.jobid in self.trackers:
             del self.trackers[job.jobid]
 
-    def check_metrics(self, job):
+    def iter_triggers(self, job):
         """
-        Check metrics against workflow specified.
+        Shared function to iterate through workflow triggers. These
+        rules are delivered to both the metrics checking functions
+        for the workflow and for state machines.
         """
         # The self.workflow.rules has indices that correspond to metrics lookup
         for metric, triggers in self.workflow.rules.items():
@@ -457,18 +473,53 @@ class WorkflowManager:
             # This is a specific river streaming ML model
             model = self.metrics.models[model_name]
 
+            # Lookup a metric value by the job stay and name. E.g,. count.job_a.failed
+            # If a metric is not defined yet, we assume a value of None / undefined
+            try:
+                value = model[job.step_name][key].get()
+            except KeyError:
+                # Most models / metrics won't have values at initial runs
+                value = None
+
             # Perform actions
             for trigger in triggers:
-                # Lookup a metric value by the job stay and name. E.g,.
-                # count.job_a.failed
-                try:
-                    value = model[step_name][key].get()
-                except KeyError:
-                    continue
+                yield trigger, value
 
-                # And check against the condition
-                if trigger.should_trigger(value):
-                    self.trigger_workflow_action(trigger, step_name, value)
+    def check_state_machine_metrics(self, job, state_machine):
+        """
+        Check metrics that are delivered to state machines.
+
+        This is distinguished from the check_workflow_metrics in that
+        the checks need to happen before jobs change state.
+        """
+        # Rules that are provided here match the job step name
+        for trigger, value in self.iter_triggers(job):
+            if trigger.action.name not in defaults.state_machine_actions:
+                continue
+
+            # And check against the condition
+            if trigger.should_trigger(value):
+                self.trigger_workflow_action(
+                    trigger, job.step_name, value, state_machine
+                )
+
+    def check_workflow_metrics(self, job, state_machine):
+        """
+        Check metrics against workflow specified.
+
+        This is distinguished from the check_state_machine_metrics in that it needs to
+        be run after jobs change state.
+        """
+        # Rules that are provided here match the job step name
+        for trigger, value in self.iter_triggers(job):
+            if trigger.action.name not in defaults.workflow_actions:
+                continue
+
+            # And check against the condition
+            if trigger.should_trigger(value):
+                self.trigger_workflow_action(
+                    trigger, job.step_name, value, state_machine
+                )
 
     def trigger_grow(self, trigger, step_name, value):
         """
@@ -508,9 +559,13 @@ class WorkflowManager:
             f"Shrink triggered: {trigger.action.metric} {trigger.when} ({value}), nodes {previous}=>{updated}"
         )
 
-    def trigger_workflow_action(self, trigger, step_name, value):
+    def trigger_workflow_action(self, trigger, step_name, value, state_machine):
         """
-        Given an action name, issue it for the workflow
+        Given an action name, issue it for the workflow.
+
+        The state machine is provided in case the workflow
+        action is to repeat. The state machine is tagged for
+        repeat, and this is honored on the change() function.
         """
         # This action has a minimum number of total completions
         if trigger.action.min_completions:
@@ -518,9 +573,17 @@ class WorkflowManager:
             if completions < trigger.action.min_completions:
                 return
 
-        # Check if we have enough completions
+        # [state-machine] Don't transition to the next state
+        if trigger.action.name == "repeat":
+
+            # This marks the step as repeatable, so when it is flagged as succeeded by the manager
+            # the step_succeeded flag won't also be applied, which transitions to next step
+            print(f"Step {step_name} is marked for repeat.")
+            state_machine.repeat(step_name)
+            return True
+
+        # [workflow] Finish the workflow
         if trigger.action.name == "finish-workflow":
-            # TODO: add more detail in calling function to event trigger
             LOGGER.info(
                 f"Workflow completion triggered: {trigger.action.metric} {trigger.when} ({value})"
             )
@@ -529,10 +592,11 @@ class WorkflowManager:
         # TODO: think about use case / mechanism for dynamic grow.
         # It would likely need to be requested by the application.
         # Static grow increases subsequent nodes for a job
+        # [workflow]
         if trigger.action.name == "grow":
             self.trigger_grow(trigger, step_name, value)
 
-        # Static shrink decreases subsequent nodes for a job
+        # [workflow] Static shrink decreases subsequent nodes for a job
         if trigger.action.name == "shrink":
             self.trigger_shrink(trigger, step_name, value)
 
@@ -551,19 +615,28 @@ class WorkflowManager:
         if job.is_completed() and duration is not None:
             self.metrics.add_model_entry("duration", duration, step=job.step_name)
 
+        # Read logs, etc.
+        if job.is_completed() and not state_machine.is_repeating():
+            state_machine.post_completion(job)
+
         # Load custom metrics from the tracker
         self.load_custom_metrics(state_machine)
 
     def load_custom_metrics(self, state_machine):
         """
         Custom metrics are created as events and received here.
+
+        Custom metrics can be instructional, meaning they return a requested action
+        to the state machine. Currently, we support one instruction per step.
         """
         # This takes the current step
         # {"job_name": job_name, "step_name": pod.metadata.labels["app"], "metrics": events}
         for m in state_machine.metrics():
             print(f"Loading custom metric {m}")
             try:
-                self.metrics.add_custom_metric(m["metrics"], m["job_name"], m["step_name"])
+                self.metrics.add_custom_metric(
+                    m["metrics"], m["job_name"], m["step_name"]
+                )
             except Exception as e:
                 print(f"Issue parsing custom metric {m}: {e}")
 
@@ -588,6 +661,7 @@ class WorkflowManager:
 
             # Not a job associated with the workflow, or is ignored
             if not job.jobid or not job.step_name or job.jobid not in self.trackers:
+                print(f"Job {job} does not have an identifier")
                 continue
 
             # Record first seen (if not seen yet) for jobid and step
@@ -599,21 +673,32 @@ class WorkflowManager:
             # The job is active and not finished, keep going
             # This status will trigger when it's created (after submit)
             if job.is_active() and not job.is_completed():
+                print(f"Job {job.jobid} is active and not completed")
                 continue
 
-            # Update metrics. This needs to happen before the job changes state
+            # Update metrics. This pops metrics parsed from post completion
+            # This needs to happen before the job changes state, as metrics can inform what happens.
             self.update_metrics(job, state_machine)
+
+            # State machine changes can be influenced by metrics (e.g., repeat)
+            # so we check them before state changes below. If we repeat a job, we
+            # don't want to mark as failed or succeeded. The call to repeat()
+            # deletes the previous job and creates a replica
+            self.check_state_machine_metrics(job, state_machine)
 
             # This is a case where the job failed, but we allow failure and keep going
             if job.is_failed() and job.always_succeed:
+                print(f"Job {job.jobid} is failed, mark success")
                 self.succeed_job(job, state_machine)
 
             # The job ran successfully, trigger the next step
-            if job.is_succeeded() and job.is_completed():
+            elif job.is_succeeded():
+                print(f"Job {job.jobid} is successful")
                 self.succeed_job(job, state_machine)
 
             # The job just completed and failed, clean up.
-            if job.is_failed():
+            elif job.is_failed():
+                print(f"Job {job.jobid} is failed")
                 self.fail_job(job, state_machine)
 
             # Check if the workflow is complete
@@ -621,8 +706,9 @@ class WorkflowManager:
 
             # Check metrics for any actions to take
             # Since a specific job will just change, we check
-            # for specific steps oriented to a job
-            self.check_metrics(job)
+            # for specific steps oriented to a job. This is also when
+            # a step that is allowed to repeat can be flagged to do so.
+            self.check_workflow_metrics(job, state_machine)
 
             # Check to see if we should submit new jobs
             self.new_jobs()

@@ -27,6 +27,9 @@ def stream_events():
     w = watch.Watch()
     for event in w.stream(batch_v1.list_namespaced_job, namespace=get_namespace()):
         job = event["object"]
+        # We are interested in created (ADDED) and MODIFIED, not DELETED
+        if event["type"] in ["DELETED"]:
+            continue
         event = Job(job)
         yield event
 

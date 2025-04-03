@@ -254,7 +254,7 @@ class KubernetesJob(Job):
         command = command or "/bin/bash /workdir/entrypoint.sh"
         return shlex.split(command)
 
-    def submit(self, step, jobid):
+    def submit(self, step, jobid, repeat=False):
         """
         Submit a job, either a standard job or Flux MiniCluster
         """
@@ -267,10 +267,10 @@ class KubernetesJob(Job):
 
         # This also needs jobset installed
         if self.properties.get("jobset") in true_options:
-            return self.submit_jobset(step, jobid)
+            return self.submit_jobset(step, jobid, replace=repeat)
 
         # Default to submit a vanilla Kubernetes Job
-        return self.submit_kubernetes_job(step, jobid)
+        return self.submit_kubernetes_job(step, jobid, replace=repeat)
 
     @property
     def backoff_limit(self):
@@ -285,7 +285,7 @@ class KubernetesJob(Job):
             backoff_limit = 6
         return backoff_limit
 
-    def submit_jobset(self, step, jobid):
+    def submit_jobset(self, step, jobid, replace=False):
         """
         Submit JobSet
         """
@@ -379,23 +379,37 @@ class KubernetesJob(Job):
 
         api_crd = client.CustomObjectsApi()
         retcode = -1
+        # If we replace, delete it first.
         try:
+            if replace:
+                # If we replace, delete it first
+                api_crd.delete_namespaced_custom_object(
+                    group="jobset.x-k8s.io",
+                    version="v1alpha2",
+                    namespace=self.namespace,
+                    name=js["metadata"].name,
+                    plural="jobsets",
+                )
             api_crd.create_namespaced_custom_object(
                 group="jobset.x-k8s.io",
                 version="v1alpha2",
-                namespace="default",
+                namespace=self.namespace,
                 plural="jobsets",
                 body=js,
             )
             retcode = 0
             submit_status = SubmissionCode.OK
         except Exception as e:
-            print(f"Error creating jobset: {e}")
-            submit_status = SubmissionCode.ERROR
+            if e.reason == "Conflict":
+                LOGGER.warning(f"JobSet for {step.name} exists, assuming resumed: {e.reason}")
+                submit_status = SubmissionCode.CONFLICT
+            else:
+                print(f"Error creating jobset: {e}")
+                submit_status = SubmissionCode.ERROR
 
         return JobSubmission(submit_status, retcode)
 
-    def submit_kubernetes_job(self, step, jobid):
+    def submit_kubernetes_job(self, step, jobid, replace=False):
         """
         Submit a job to Kubernetes
 
@@ -406,6 +420,8 @@ class KubernetesJob(Job):
         batch_api = client.BatchV1Api()
         retcode = -1
         try:
+            if replace:
+                batch_api.delete_namespaced_job(self.namespace, job)
             batch_api.create_namespaced_job(self.namespace, job)
             retcode = 0
             submit_status = SubmissionCode.OK

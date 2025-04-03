@@ -6,6 +6,12 @@ class BaseJob:
     def __init__(self, job):
         self.job = job
 
+    def update_status(self):
+        """
+        Get an updated status for a job
+        """
+        pass
+
     @property
     def jobid(self):
         raise NotImplementedError

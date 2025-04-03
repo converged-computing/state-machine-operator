@@ -7,6 +7,8 @@ workdir = "/tmp/out"
 
 # Workflow
 workflow_actions = ["grow", "shrink", "finish-workflow"]
+state_machine_actions = ["repeat"]
+all_actions = state_machine_actions + workflow_actions
 workflow_events = ["failure", "success", "duration"]
 
 # Custom metrics annotation
