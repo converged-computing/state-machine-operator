@@ -121,7 +121,6 @@ def mark_succeeded(self, job=None, state_name=None):
     # If the step is repeatable, don't make as succeeded, it is already
     # marked as repeatable and will transition back to itself.
     if getattr(self, f"{state_name}_repeat", False) is True:
-        print("Not marking success, intended for repeat.")
         return
     setattr(self, f"{state_name}_success", True)
 

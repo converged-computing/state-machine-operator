@@ -5,18 +5,18 @@ metadata:
 spec:
   manager:
     pullPolicy: Never
-    interactive: true
   workflow:
     completed: 1
     events:
       # Finish the workflow when accuracy good enough
       # This is a workflow action
-      - metric: mean.pytorch.accuracy
-        when: ">= 0.95"
+      - metric: max.pytorch.accuracy
+        when: ">= 0.6"
         action: finish-workflow
       # Repeat the step (new job) if accuracy not good enough, or not yet defined
-      - metric: mean.pytorch.accuracy
-        when: "< 0.95"
+      # The model starts fluctuating (accuracy) around 0.6
+      - metric: max.pytorch.accuracy
+        when: "< 0.6"
         action: repeat
 
   cluster:
@@ -37,7 +37,7 @@ spec:
       MASTER_PORT: "3389"
       PYTHONUNBUFFERED: "0"
       WORLD_RANK: "from:metadata.annotations['batch.kubernetes.io/job-completion-index']"
-      epochs: "4"
+      epochs: "6"
     script:  |
       export ENDPOINT=${jobname}-jobset-0-0.${jobname}.default.svc.cluster.local:${MASTER_PORT}
       export WORLD_SIZE=$nodes

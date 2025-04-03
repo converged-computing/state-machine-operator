@@ -51,8 +51,6 @@ class Job(BaseJob):
         """
         Determine if a job is completed
         """
-        if self.has_succeeded_condition():
-            return True
         return self.job.status.completion_time is not None
 
     def is_failed(self):
@@ -66,21 +64,7 @@ class Job(BaseJob):
         Determine if a job has succeeded
         We need to have a completion time and no failed indices.
         """
-        if self.has_succeeded_condition():
-            return True
         return self.is_completed() and self.job.status.failed is None
-
-    def has_succeeded_condition(self):
-        """
-        Jobs can miss a completion timestamp but have this
-        """
-        # Note that the previous criteria will be "success criteria met" and
-        # we can't have that be the success condition or this triggers twice
-        if self.job.status.conditions is not None:
-            for condition in self.job.status.conditions:
-                if condition.type == "Complete":
-                    return True
-        return False
 
     def duration(self):
         """

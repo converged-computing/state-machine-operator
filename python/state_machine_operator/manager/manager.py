@@ -18,7 +18,6 @@ from state_machine_operator.machine import new_state_machine
 from .metrics import WorkflowMetrics
 from .utils import timed
 
-# Print debug for now
 logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
@@ -467,7 +466,7 @@ class WorkflowManager:
 
             # Is the metric known to us?
             if model_name not in self.metrics.models:
-                print(f"Warning, model metric {model_name} is not known")
+                LOGGER.warning(f"Model metric {model_name} is not known")
                 continue
 
             # This is a specific river streaming ML model
@@ -578,7 +577,9 @@ class WorkflowManager:
 
             # This marks the step as repeatable, so when it is flagged as succeeded by the manager
             # the step_succeeded flag won't also be applied, which transitions to next step
-            print(f"Step {step_name} is marked for repeat.")
+            LOGGER.info(
+                f"Step {step_name} is marked for repeat: {trigger.action.metric} {trigger.when} ({value})"
+            )
             state_machine.repeat(step_name)
             return True
 
@@ -615,8 +616,8 @@ class WorkflowManager:
         if job.is_completed() and duration is not None:
             self.metrics.add_model_entry("duration", duration, step=job.step_name)
 
-        # Read logs, etc.
-        if job.is_completed() and not state_machine.is_repeating():
+        # Read logs, etc. We need this to run on repeats as well.
+        if job.is_completed():
             state_machine.post_completion(job)
 
         # Load custom metrics from the tracker
@@ -632,13 +633,13 @@ class WorkflowManager:
         # This takes the current step
         # {"job_name": job_name, "step_name": pod.metadata.labels["app"], "metrics": events}
         for m in state_machine.metrics():
-            print(f"Loading custom metric {m}")
+            LOGGER.info(f"Loading custom metric {m}")
             try:
                 self.metrics.add_custom_metric(
                     m["metrics"], m["job_name"], m["step_name"]
                 )
             except Exception as e:
-                print(f"Issue parsing custom metric {m}: {e}")
+                LOGGER.warning(f"Issue parsing custom metric {m}: {e}")
 
     def add_timestamp_first_seen(self, label):
         """
@@ -661,7 +662,7 @@ class WorkflowManager:
 
             # Not a job associated with the workflow, or is ignored
             if not job.jobid or not job.step_name or job.jobid not in self.trackers:
-                print(f"Job {job} does not have an identifier")
+                LOGGER.warning(f"Job {job} does not have an identifier")
                 continue
 
             # Record first seen (if not seen yet) for jobid and step
@@ -673,7 +674,7 @@ class WorkflowManager:
             # The job is active and not finished, keep going
             # This status will trigger when it's created (after submit)
             if job.is_active() and not job.is_completed():
-                print(f"Job {job.jobid} is active and not completed")
+                LOGGER.info(f"Job {job.jobid} is active and not completed")
                 continue
 
             # Update metrics. This pops metrics parsed from post completion
@@ -688,17 +689,17 @@ class WorkflowManager:
 
             # This is a case where the job failed, but we allow failure and keep going
             if job.is_failed() and job.always_succeed:
-                print(f"Job {job.jobid} is failed, mark success")
+                LOGGER.info(f"Job {job.jobid} is failed, mark success")
                 self.succeed_job(job, state_machine)
 
             # The job ran successfully, trigger the next step
             elif job.is_succeeded():
-                print(f"Job {job.jobid} is successful")
+                LOGGER.info(f"Job {job.jobid} is successful")
                 self.succeed_job(job, state_machine)
 
             # The job just completed and failed, clean up.
             elif job.is_failed():
-                print(f"Job {job.jobid} is failed")
+                LOGGER.info(f"Job {job.jobid} is failed")
                 self.fail_job(job, state_machine)
 
             # Check if the workflow is complete

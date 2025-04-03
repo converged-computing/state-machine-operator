@@ -1,6 +1,10 @@
 import json
+import logging
 
 from river import stats
+
+logging.basicConfig(level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
 
 model_inits = {
     "variance": stats.Var,
@@ -65,7 +69,7 @@ class WorkflowMetrics:
         A custom metric is delivered to a job via an update, and an
         annotation is added.
         """
-        print(f"Adding custom metrics for {job_name}")
+        LOGGER.info(f"Adding custom metrics for {job_name}")
 
         # This adds variance, mean, max, min, iqr, and mad
         for metric_name, metric_value in metrics.items():
