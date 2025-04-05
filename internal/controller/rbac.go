@@ -106,6 +106,7 @@ func (r *StateMachineReconciler) createRole(
 	spec *api.StateMachine,
 ) (*rbacv1.Role, error) {
 
+	verbs := []string{"list", "get", "patch", "create", "delete", "watch", "update"}
 	mLog.Info("Creating role for: ", spec.Name, spec.Namespace)
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{Name: spec.RoleName(), Namespace: spec.Namespace},
@@ -113,17 +114,22 @@ func (r *StateMachineReconciler) createRole(
 			{
 				APIGroups: []string{"", "batch"},
 				Resources: []string{"pods", "pods/log", "jobs", "configmaps", "jobs/status"},
-				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch", "update"},
+				Verbs:     verbs,
 			},
 			{
 				APIGroups: []string{"", "flux-framework.org"},
 				Resources: []string{"miniclusters"},
-				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+				Verbs:     verbs,
 			},
 			{
 				APIGroups: []string{"", "events.k8s.io"},
 				Resources: []string{"events"},
-				Verbs:     []string{"list", "get", "patch", "create", "delete", "watch"},
+				Verbs:     verbs,
+			},
+			{
+				APIGroups: []string{"jobset.x-k8s.io"},
+				Resources: []string{"jobsets"},
+				Verbs:     verbs,
 			},
 		},
 	}

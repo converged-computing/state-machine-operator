@@ -28,8 +28,6 @@ spec:
     image: rockylinux:9
     script: echo This is a setup for lammps
 
-  # Note that this step always fails and we never make it to C
-  # This should end the workflow early
   - name: lammps
     properties:
       minicluster: "yes"

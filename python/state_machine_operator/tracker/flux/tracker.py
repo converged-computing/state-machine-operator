@@ -97,9 +97,9 @@ class FluxJob(Job):
         jobspec.duration = walltime
         return jobspec
 
-    def submit(self, step, jobid):
+    def submit(self, step, jobid, repeat=False):
         """
-        Submit a job to Kubernetes
+        Submit a job to Kubernetes. Flux does not currently support repeat.
 
         :param step: The JobSetup data.
         """

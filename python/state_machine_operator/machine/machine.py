@@ -91,24 +91,66 @@ def is_succeeded(self, state_name=None):
     return getattr(self, f"{state_name}_success", False) is True
 
 
+def is_repeating(self):
+    """
+    Determine if the current step is repeating.
+    """
+    return getattr(self, f"{self.current_state.id}_repeat", False)
+
+
+def repeat(self, step_name):
+    """
+    Mark a step as repeatable. This can be done on a successful state.
+    For failure, the user should use the Kubernetes retry (backoffLimit)
+    for now.
+    """
+    setattr(self, f"{step_name}_repeat", True)
+
+
 def mark_succeeded(self, job=None, state_name=None):
     """
     Mark the current state succeeded (default) or another specific state.
+
+    This means that we will transition to the next step with a call to change.
+    However, in the case of a step that needs to repeat, we should not make
+    this mark, but rather set a repeat flag on the tracker, and then allow
+    the step to cleanup and repeat.
     """
-    tracker = self.trackers[self.current_state.id]
-    tracker.save_log(job)
     state_name = state_name or self.current_state.id
+
+    # If the step is repeatable, don't make as succeeded, it is already
+    # marked as repeatable and will transition back to itself.
+    if getattr(self, f"{state_name}_repeat", False) is True:
+        return
     setattr(self, f"{state_name}_success", True)
+
+
+def unmark_repeatable(self, step_name):
+    """
+    Unmark the job as repeatable, and mark the tracker to expect it.
+    """
+    setattr(self, f"{step_name}_repeat", False)
 
 
 def mark_failed(self, job=None, state_name=None):
     """
     Mark the current state failed (default) or another specific state.
     """
-    tracker = self.trackers[self.current_state.id]
-    tracker.save_log(job)
     state_name = state_name or self.current_state.id
     setattr(self, f"{state_name}_failure", True)
+
+
+def post_completion(self, job):
+    """
+    Run post completion actions. E.g., saving a log, and from the log we
+    derive metrics to parse.
+    """
+    # This won't work if retry was done, or we are complete
+    try:
+        tracker = self.trackers[self.current_state.id]
+        tracker.save_log(job)
+    except Exception:
+        pass
 
 
 def mark_running(self, running_state):
@@ -154,8 +196,17 @@ def on_change(self):
         return
 
     # We haven't succeeded or failed - submit a new job!
-    tracker = self.trackers[self.current_state.id]
-    tracker.submit_job(self.jobid)
+    step_name = self.current_state.id
+    tracker = self.trackers[step_name]
+
+    # Are we repeating a step?
+    is_repeatable = getattr(self, f"{step_name}_repeat")
+    if not is_repeatable:
+        return tracker.submit_job(self.jobid)
+
+    # If we get here, we run repeatable
+    tracker.submit_job(self.jobid, repeat=True)
+    self.unmark_repeatable(step_name)
 
 
 def metrics(self):
@@ -192,13 +243,17 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
     events = {"change": []}
 
     # Extra kwargs here are class functions and "on_enter_<state>" functions
-    # TODO should we have on_enter_completed that deletes jobs?
     extra_kwargs = {
         "on_enter_start": on_enter_start,
         # Actions to mark as running, succeeded, or failed
         "mark_running": mark_running,
         "mark_succeeded": mark_succeeded,
         "mark_failed": mark_failed,
+        # Action markers from the manager
+        "repeat": repeat,
+        "post_completion": post_completion,
+        "unmark_repeatable": unmark_repeatable,
+        "is_repeating": is_repeating,
         # Booleans to check state
         "is_failed": is_failed,
         "is_succeeded": is_succeeded,
@@ -229,6 +284,10 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
             extra_kwargs[f"{job}_failure"] = False
             events["change"].append({"from": "start", "to": job})
 
+        # Allow a job to transition to itself (a repeat or cycle)
+        extra_kwargs[f"{job}_repeat"] = False
+        events["change"].append({"from": job, "to": job, "cond": f"{job}_repeat"})
+
         # This ensures we run a function to submit the job when
         # we change state, which means we successfully finished
         # the previous step
@@ -245,8 +304,6 @@ def new_state_machine(config, jobid, tracker_type="kubernetes"):
     extra_kwargs[f"{job}_success"] = False
     extra_kwargs[f"{job}_failure"] = False
 
-    definition = {
-        "states": states,
-        "events": events,
-    }
+    # A state machine has states, events, and associated functions
+    definition = {"states": states, "events": events}
     return create_state_machine_job(definition, **extra_kwargs)

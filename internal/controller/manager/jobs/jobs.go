@@ -15,8 +15,8 @@ cd /tmp
 VERSION="1.2.2"
 curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_%s.tar.gz"
 mkdir -p oras-install/
-tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
-mv oras-install/oras /usr/local/bin/ || sudo mv oras-install/oras /usr/local/bin/
+tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/ || true
+mv oras-install/oras /usr/local/bin/ || sudo mv oras-install/oras /usr/local/bin/ || mv oras-install/oras /usr/local/bin/
 rm -rf oras_${VERSION}_*.tar.gz oras-install/
 cd -
 
@@ -54,8 +54,7 @@ oras pull $registry/${jobid}:{{ pull }} {% if plain_http %}--plain-http{% endif 
 retval=$?
 if [ $retval -eq 0 ];
   then
-      # TODO add granularity of what result file to push
-	  cd $outpath
+      cd $outpath
       echo "Job was successful, pushing result to $registry/${jobid}:{{ push }}"
 	  oras push {% if plain_http %}--plain-http{% endif %} $registry/${jobid}:{{ push }} .
   else

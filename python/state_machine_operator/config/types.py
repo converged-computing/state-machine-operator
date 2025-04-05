@@ -19,12 +19,20 @@ class Rule:
         Check if "when" is relevant to be run now, return True/False
         to say to run or not.
         """
+        # This ensures we check backoff, etc.
+        if not self.action.should_trigger():
+            return False
+
         # No when is set, so we just continue assuming there is no when
         if self.when is None:
-            return True
+            return self.action.perform()
 
-        # This ensures we check backoff, etc.
-        if not self.action.perform():
+        # If the value is None, and the trigger is undefined
+        if value is None and self.when == "undefined":
+            return self.action.perform()
+
+        # The value is None, and we can't act on it
+        if value is None:
             return False
 
         # If we have a direct value, we check for equality
@@ -32,10 +40,12 @@ class Rule:
         if isinstance(self.when, number) and value != self.when:
             return False
         if isinstance(self.when, number) and value == self.when:
-            return True
+            return self.action.perform()
 
         # Otherwise, parse for inequality
-        match = re.search(r"(?P<inequality>[<>]=?)\s*(?P<comparator>\w+)", self.when).groupdict()
+        match = re.search(
+            r"(?P<inequality>[<>]=?)\s*(?P<comparator>-?\d+(\.\d*)?)", self.when
+        ).groupdict()
 
         # This could technically be a float value
         comparator = float(match["comparator"])
@@ -43,17 +53,25 @@ class Rule:
         assert inequality in {"<", ">", "<=", ">=", "==", "="}
 
         # Evaluate! Not sure there is a better way than this :)
+        should_trigger = False
         if inequality == "<":
-            return value < comparator
-        if inequality == "<=":
-            return value <= comparator
-        if inequality == ">":
-            return value > comparator
-        if inequality == ">=":
-            return value >= comparator
-        if inequality in ["==", "="]:
-            return value == comparator
-        raise ValueError(f"Invalid comparator {comparator} for rule when")
+            should_trigger = value < comparator
+        elif inequality == "<=":
+            should_trigger = value <= comparator
+        elif inequality == ">":
+            should_trigger = value > comparator
+        elif inequality == ">=":
+            should_trigger = value >= comparator
+        elif inequality in ["==", "="]:
+            should_trigger = value == comparator
+        else:
+            raise ValueError(f"Invalid comparator {comparator} for rule when")
+
+        # Perform the action if trigger is warranted, alert caller
+        if should_trigger:
+            self.action.perform()
+            return True
+        return False
 
     def check_when(self):
         """
@@ -78,7 +96,8 @@ class Rule:
         Validate the rule and associated action
         """
         # Is the action name valid?
-        if self.action.name not in defaults.workflow_actions:
+        # all actions is the combination of workflow and state machine actions
+        if self.action.name not in defaults.all_actions:
             raise ValueError(f"Event has invalid action name {self.action.name}")
 
         # Ensure we have a valid number or inequality
@@ -99,11 +118,11 @@ class Action:
 
     def parse_frequency(self):
         """
-        Parse the action frequency, which by default, is to run
+        Parse the action frequency, which by default, is to run it indefinitely.
         it once. An additional backoff period (number of periods to skip)
         can also be provided.
         """
-        self.repetitions = self._action.get("repetitions", 1)
+        self.repetitions = self._action.get("repetitions")
 
         # Backoff between repetitions (this is global setting)
         # Setting to None indicates backoff is not active
@@ -112,7 +131,7 @@ class Action:
         # Counter between repetitions
         self.backoff_counter = 0
 
-    def perform(self):
+    def should_trigger(self):
         """
         Return True or False to indicate performing an action.
         """
@@ -122,11 +141,24 @@ class Action:
 
         # The action is flagged to have some total backoff periods between repetitions
         if self.backoff is not None and self.backoff >= 0:
-            return self.perform_backoff()
+            return False
+
+        # We don't have any repetitions left
+        if self.repetitions is not None and self.repetitions <= 0:
+            return False
+        return True
+
+    def perform(self):
+        """
+        Return True or False to indicate performing an action.
+        """
+        # The action is flagged to have some total backoff periods between repetitions
+        if self.backoff is not None and self.backoff >= 0:
+            self.perform_backoff()
 
         # If we get here, backoff is not set (None) and repetitions > 0
-        self.repetitions -= 1
-        return True
+        if self.repetitions is not None:
+            self.repetitions -= 1
 
     def perform_backoff(self):
         """
@@ -137,17 +169,15 @@ class Action:
         # But we are still going through a period
         if self.backoff_counter > 0:
             self.backoff_counter -= 1
-            return False
 
         # The backoff counter has expired - it is zero here
         # reset the counter to the original value
-        self.backoff_counter = self.backoff
+        if self.backoff_counter == 0:
+            self.backoff_counter = self.backoff
 
         # Decrement repetitions
-        self.repetitions -= 1
-
-        # And signal to run the action
-        return True
+        if self.repetitions is not None:
+            self.repetitions -= 1
 
     @property
     def name(self):
@@ -175,4 +205,4 @@ class Action:
         An action is finished when it has no more repetitions
         It should never go below zero, in practice.
         """
-        return self.repetitions <= 0
+        return self.repetitions is not None and self.repetitions <= 0

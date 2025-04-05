@@ -109,6 +109,11 @@ spec:
                           description: Walltime (in string format) for the job
                           type: string
                       type: object
+                    environment:
+                      additionalProperties:
+                        type: string
+                      description: Environment for the job
+                      type: object
                     events:
                       description: Event for a job
                       properties:

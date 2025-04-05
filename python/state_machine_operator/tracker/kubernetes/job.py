@@ -1,3 +1,5 @@
+from kubernetes import client
+
 import state_machine_operator.defaults as defaults
 import state_machine_operator.utils as utils
 from state_machine_operator.tracker.job import BaseJob
@@ -7,6 +9,21 @@ class Job(BaseJob):
     """
     Each returned job needs to expose a common interface
     """
+
+    def __init__(self, job):
+        self.job = job
+
+    def update_status(self):
+        """
+        Get an updated status for a job
+        """
+        batch_v1 = client.BatchV1Api()
+        try:
+            self.job = batch_v1.read_namespaced_job_status(
+                name=self.job.metadata.name, namespace=self.job.metadata.namespace
+            )
+        except Exception as e:
+            print(f"Issue getting updated job status: {e}")
 
     @property
     def jobid(self):
@@ -28,7 +45,7 @@ class Job(BaseJob):
         """
         Determine if a job is active
         """
-        return self.job.status.active == 1
+        return self.job.status.active is not None and self.job.status.active > 0
 
     def is_completed(self):
         """
@@ -40,14 +57,14 @@ class Job(BaseJob):
         """
         Determine if a job is failed.
         """
-        return not self.is_succeeded()
+        return self.is_completed() and self.job.status.failed is not None
 
     def is_succeeded(self):
         """
         Determine if a job has succeeded
         We need to have a completion time and no failed indices.
         """
-        return self.is_completed and not self.job.status.failed
+        return self.is_completed() and self.job.status.failed is None
 
     def duration(self):
         """

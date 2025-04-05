@@ -205,13 +205,13 @@ class BaseTracker:
     def pull_from(self):
         return self.job_desc.get("registry", {}).get("pull")
 
-    def submit_job(self, jobid):
+    def submit_job(self, jobid, repeat=False):
         """
         Submit a job to a tracker adapter.
         """
         step = self.create_step(jobid)
         LOGGER.debug(f"[{self.type}] submitting job {jobid}")
-        submit_record = self.adapter.submit(step, jobid)
+        submit_record = self.adapter.submit(step, jobid, repeat=repeat)
 
         # A conflcit means the job is already running. We don't want to count
         # it as a new submit (it will already be represented in the state)

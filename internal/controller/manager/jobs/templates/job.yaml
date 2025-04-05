@@ -29,6 +29,11 @@ app-config: |
   {{ .Job.AppConfig }}
 {{ end }}
 
+{{ if .Job.Environment }}
+environment: {{range $key, $value := .Job.Environment }}
+ {{ $key }}: {{ $value }}
+{{ end }}{{ end }}
+
 {{ if .Job.Script }}
 script: |
   {{ .Job.Script }}
