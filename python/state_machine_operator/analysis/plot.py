@@ -1,6 +1,7 @@
 import os
 
 import matplotlib.pylab as plt
+import matplotlib.ticker as ticker
 import seaborn as sns
 
 timestamp_format = "%Y-%m-%dT%H:%M:%SZ"
@@ -29,6 +30,7 @@ def make_plot(
     remove_legend=False,
     remove_y=False,
     remove_x=False,
+    round_y=False,
     xmin=None,
     xmax=None,
     ymin=None,
@@ -115,6 +117,8 @@ def make_plot(
     if remove_y:
         ax.set_ylabel(None)
         ax.set_yticks([])
+    if round_y:
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
     plt.xticks(rotation=rotation)
     plt.tight_layout()
     plt.savefig(os.path.join(outdir, f"{plotname}.svg"))

@@ -431,6 +431,7 @@ class WorkflowManager:
             f"Job {job.jobid} completed stage '{state_machine.current_state.id}'"
         )
         state_machine.mark_succeeded(job)
+
         # Change successful jobs it not complete
         if job.is_succeeded() and state_machine.current_state.id != "complete":
             state_machine.change()
@@ -687,6 +688,11 @@ class WorkflowManager:
             # deletes the previous job and creates a replica
             self.check_state_machine_metrics(job, state_machine)
 
+            # Was the step marked for repeat? If so, we don't want to submit new jobs
+            # There can be a race. The succeed/fail functions below will remove repeating,
+            # so we need to grab the state here.
+            is_repeating = state_machine.is_repeating()
+
             # This is a case where the job failed, but we allow failure and keep going
             if job.is_failed() and job.always_succeed:
                 LOGGER.info(f"Job {job.jobid} is failed, mark success")
@@ -711,5 +717,6 @@ class WorkflowManager:
             # a step that is allowed to repeat can be flagged to do so.
             self.check_workflow_metrics(job, state_machine)
 
-            # Check to see if we should submit new jobs
-            self.new_jobs()
+            # Check to see if we should submit new jobs, only if the job isn't repeating
+            if not is_repeating:
+                self.new_jobs()
