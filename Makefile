@@ -150,7 +150,7 @@ manager:
 .PHONY: manager-arm
 manager-arm:
 	# $(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_ARMIMG} .
-	docker buildx build --platform linux/arm64 -t ${MANAGER_ARMIMG} .
+	docker buildx build --platform linux/arm64 --push -t ${MANAGER_ARMIMG} .
 
 .PHONY: pre-push
 pre-push: generate api build-config-arm build-config helm
