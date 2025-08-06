@@ -44,6 +44,7 @@ IMG ?= ghcr.io/converged-computing/state-machine-operator:latest
 ARMIMG ?= ghcr.io/converged-computing/state-machine-operator:arm
 DEVIMG ?= ghcr.io/converged-computing/state-machine-operator:test
 MANAGER_IMG ?= ghcr.io/converged-computing/state-machine-operator:manager
+MANAGER_ARMIMG ?= ghcr.io/converged-computing/state-machine-operator:manager-arm
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
@@ -146,6 +147,20 @@ docker-push: ## Push docker image with the manager.
 manager:
 	$(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_IMG} .
 
+.PHONY: manager-arm
+manager-arm:
+	# $(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_ARMIMG} .
+	docker buildx build --platform linux/arm64 -t ${MANAGER_ARMIMG} .
+
+.PHONY: pre-push
+pre-push: generate api build-config-arm build-config helm
+	git status
+
+.PHONY: build-config-arm
+build-config-arm: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${ARMIMG}
+	$(KUSTOMIZE) build config/default > examples/dist/state-machine-operator-arm.yaml
+
 .PHONY: kind
 kind: manager ## Build docker image with the manager and load into kind
 	kind load docker-image ${MANAGER_IMG}
@@ -217,7 +232,7 @@ test-deploy-ci: manifests kustomize manager helm
 	docker build --no-cache -t ${DEVIMG} .
 	kind load docker-image ${MANAGER_IMG}
 	kind load docker-image ${DEVIMG}
-	helm install --set controllerManager.manager.imagePullPolicy=Never --set controllerManager.manager.tag=test smo ./chart
+	helm install --set controllerManager.manager.imagePullPolicy=Never --set controllerManager.manager.image.tag=test smo ./chart
 
 .PHONY: test-deploy-kind
 test-deploy-kind: test-deploy manager

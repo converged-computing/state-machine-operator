@@ -11,7 +11,7 @@ controllerManager:
         - ALL
     image:
       repository: ghcr.io/converged-computing/state-machine-operator
-      tag: test
+      tag: latest
     imagePullPolicy: Always
     resources:
       limits:

@@ -37,6 +37,11 @@ jobs:
     - name: Deploy Container
       run: make arm-deploy
 
+    - name: Deploy ARM Container
+      run: |
+        make manager-arm
+        docker push ghcr.io/converged-computing/state-machine-operator:manager-arm
+
   build-manager:
     permissions:
       packages: write

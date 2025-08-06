@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/converged-computing/state-machine-operator
-  newTag: test
+  newTag: arm
