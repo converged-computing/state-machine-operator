@@ -54,7 +54,14 @@ class NodesTimesParser:
             colors[item] = hexcolors.pop(0)
         return colors
 
-    def to_gantt(self, outfile, title="Node Uptimes for Static vs Autoscaling", colors=None):
+    def to_gantt(
+        self,
+        outfile,
+        title="Node Uptimes for Static vs Autoscaling",
+        colors=None,
+        width=8,
+        height=20,
+    ):
         """
         Make a gantt chart of nodes over time
         """
@@ -83,7 +90,7 @@ class NodesTimesParser:
             patches.append(matplotlib.patches.Patch(color=color))
 
         # Each needs its own plot
-        fig, axs = plt.subplots(number_plots, figsize=(8, 20))
+        fig, axs = plt.subplots(number_plots, figsize=(width, height))
         idx = 0
         for experiment in self.df.experiment.unique():
             exp_subset = self.df[self.df.experiment == experiment]
@@ -105,7 +112,7 @@ class NodesTimesParser:
                 idx += 1
 
         plt.subplots_adjust(top=0.95)
-        fig.suptitle(title, fontsize=11)
+        fig.suptitle(title, fontsize=11, x=0.025, y=0.98, ha="left")
         fig.legend(handles=patches, labels=colors.keys(), fontsize=11)
         plt.savefig(outfile)
 

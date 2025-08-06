@@ -44,6 +44,7 @@ IMG ?= ghcr.io/converged-computing/state-machine-operator:latest
 ARMIMG ?= ghcr.io/converged-computing/state-machine-operator:arm
 DEVIMG ?= ghcr.io/converged-computing/state-machine-operator:test
 MANAGER_IMG ?= ghcr.io/converged-computing/state-machine-operator:manager
+INSTANCE_SELECT_IMG ?= ghcr.io/converged-computing/state-machine-operator:instance-select
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.30.0
@@ -145,6 +146,10 @@ docker-push: ## Push docker image with the manager.
 .PHONY: manager
 manager:
 	$(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_IMG} .
+
+.PHONY: instance-select
+instance-select:
+	$(CONTAINER_TOOL) build -f docker/instance-select/Dockerfile -t ${INSTANCE_SELECT_IMG} .
 
 .PHONY: kind
 kind: manager ## Build docker image with the manager and load into kind
