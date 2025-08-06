@@ -40,6 +40,9 @@ if __name__ == "__main__":
             "river",
             "kubernetes",
         ],
+        extras_require={
+            'instance-select': ['pandas', 'requests', "grpcio", "grpcio-tools"],
+        },
         tests_require=["pytest", "pytest-cov"],
         classifiers=[
             "Intended Audience :: Science/Research",
@@ -55,6 +58,7 @@ if __name__ == "__main__":
         entry_points={
             "console_scripts": [
                 "state-machine-manager=state_machine_operator.manager:main",
+                "instance-select-server=state_machine_operator.instances.server:main",
             ]
         },
     )

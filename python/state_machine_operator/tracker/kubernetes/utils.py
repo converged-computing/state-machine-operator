@@ -1,15 +1,14 @@
 import os
 
 from kubernetes import client
-
+import state_machine_operator.default as defaults
 
 def get_namespace():
     """
     Get the current namespace the workflow manager is running in.
     """
-    ns_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-    if os.path.exists(ns_path):
-        with open(ns_path) as f:
+    if os.path.exists(defaults.service_account_file):
+        with open(defaults.service_account_file) as f:
             return f.read().strip()
 
 

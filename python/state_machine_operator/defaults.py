@@ -1,5 +1,10 @@
 scheduler = "kubernetes"
 registry = "registry-0.state-machine.default.svc.cluster.local:5000"
+service_account_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
+# Insance select server
+workers = 8
+port = 8080
 
 # Operator label for the jobid
 operator_label = "jobid"
