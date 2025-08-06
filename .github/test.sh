@@ -5,7 +5,7 @@ set -eEu -o pipefail
 # Show logs for the manager (need to do this while it exists)
 sleep 15
 kubectl get pods --all-namespaces
-manager=$(kubectl get pods -n state-machine-operator-system -o json | jq -r .items[0].metadata.name)
+manager=$(kubectl get pods  -l component=state-machine-manager -o json | jq -r .items[0].metadata.name)
 echo "Manager pod is $manager"
 kubectl logs $manager
 
