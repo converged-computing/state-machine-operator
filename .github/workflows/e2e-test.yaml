@@ -27,13 +27,6 @@ jobs:
 
   test:
     needs: [build]
-    env:
-      registry: ghcr.io/converged-computing
-      namespace: state-machine-operator-system
-      controller_container: ghcr.io/flux-framework/fluxqueue
-      scheduler_container: ghcr.io/flux-framework/fluxqueue-scheduler
-      postgres_container: ghcr.io/flux-framework/fluxqueue-postgres
-
     runs-on: ubuntu-latest
     name: test state machine operator
     steps:

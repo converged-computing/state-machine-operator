@@ -146,6 +146,15 @@ docker-push: ## Push docker image with the manager.
 manager:
 	$(CONTAINER_TOOL) build -f docker/manager/Dockerfile -t ${MANAGER_IMG} .
 
+.PHONY: pre-push
+pre-push: generate api build-config-arm build-config helm
+	git status
+
+.PHONY: build-config-arm
+build-config-arm: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${ARMIMG}
+	$(KUSTOMIZE) build config/default > examples/dist/state-machine-operator-arm.yaml
+
 .PHONY: kind
 kind: manager ## Build docker image with the manager and load into kind
 	kind load docker-image ${MANAGER_IMG}
