@@ -37,8 +37,8 @@ jobs:
     - name: Deploy Container
       run: make arm-deploy
 
-    - name: Deploy ARM Container
-      run: make manager-arm
+    # - name: Deploy ARM Container
+    #  run: make manager-arm
 
   build-manager:
     permissions:
