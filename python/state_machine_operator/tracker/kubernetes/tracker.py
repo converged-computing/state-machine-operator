@@ -449,7 +449,7 @@ class KubernetesJob(Job):
         metadata = client.V1ObjectMeta(name=job_name, namespace=self.namespace)
         resources = self.generate_resources(step)
         pull_always = True if self.config.get("pull_policy") == "Always" else False
-
+        flux_view = self.properties.get("flux")
         container = {
             "command": " ".join(self.command),
             "image": self.job_desc["image"],
@@ -488,6 +488,7 @@ class KubernetesJob(Job):
             "maxSize": step.nodes + 100,
             "size": step.nodes,
             "tasks": step.cores_per_task,
+            "flux": flux_view,
             "network": {
                 "headlessName": step.name,
             },
